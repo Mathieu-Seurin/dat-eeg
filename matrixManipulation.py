@@ -9,6 +9,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+from copy import copy, deepcopy
+
 class SignalHandler(object):
     """
     Native Object used to manipulate simple signal
@@ -85,33 +87,61 @@ class SignalHandler(object):
         plt.grid()
         plt.show()
 
-
 class SingleElectrodeProcessor(SignalHandler):
 
-    def __init__(self, fileName="BCI/Subject_A_Train.mat", numTrial=0, numElec=0):
+    def __init__(self, fileName="BCI/Subject_A_Train.mat", numSession=0, numElec=0):
 
         data = sio.loadmat(fileName)
         self.targetLetters = data['TargetChar'][0]
-        self.numTrial = numTrial
+        self.numSession = numSession
         self.numElec = numElec
-        self.mainSignal = data['Signal'][numTrial,:,numElec]
+        self.mainSignal = data['Signal'][numSession,:,numElec]
         self.fs = 240 #Hz : Fréquence d'échantillonage du signal
         self.numPoints = len(self.mainSignal)
         self.duration = self.numPoints/self.fs
+
+        print(self.numPoints)
 
         self.x = np.linspace(0,self.duration,self.numPoints)
 
     def plotSTFT(self, hanning=False, numWindow=4):
 
-        plt.title("Power Signal :\nLetter : {}  Elec = {}".format(self.targetLetters[self.numTrial], self.numElec))
+        plt.title("Power Signal :\nLetter : {}  Elec = {}".format(self.targetLetters[self.numSession], self.numElec))
         super().plotStft(self)
 
 class MultipleElectrodeProcessor(SignalHandler):
 
-    def __init__(self, fileName="BCI/Subject_A_Train.mat", numTrial=0, numElec=0):
+    def __init__(self, fileName="BCI/Subject_A_Train.mat", numSession=0, numElec=0):
+        super().__init__(self)
 
-        self.data = sio.loadmat(fileName)
-        self.fs = 240 #Hz : Fréquence d'échantillonage du signal
+    def signalCutting(self):
+        """
+        Function to Process the signal sent
+
+        The first 2.5s and last 2.5 are present in the dataset
+
+        Sequence look like this :
+
+        12*175 ms : First Sample 2100 ms : 504 Points
+        12*175 ms : Last Sample 2100 ms : 504 Points
+
+        13*(13*75+12*100) ms : 2-13 Samples : 13 x 2175 ms : 522 points
+
+        Total : 32.475 s = 7794 points at 240Hz
+
+        """
+
+        oldSignal = deepcopy(self.mainSignal)
+        newSignal = self.mainSignal
+
+        toRemove = 2.5*self.fs #Number of Points representing 2.5s
+
+        newSignal = newSignal[toRemove:self.numPoints-toRemove]
+        #Remove the first 2.5 secondes and the last 2.5 secondes
+
+
+
+
 
 
 def main():
@@ -126,9 +156,9 @@ def main():
     # mySig.plotSignal()
     # mySig.plotFft()
 
-    # mySig = SingleElectrodeProcessor(numTrial=10, numElec=10)
-    # mySig.plotSignal()
-    # mySig.plotFft()
+    mySig = SingleElectrodeProcessor(numSession=10, numElec=10)
+    mySig.plotSignal()
+    mySig.plotFft()
 
 if __name__ == '__main__':
     main()
