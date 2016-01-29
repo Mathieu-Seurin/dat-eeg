@@ -29,7 +29,7 @@ class SignalHandler(object):
         plt.xlabel('Time in S')
         plt.title("Signal")
         plt.grid()
-        plt.show()
+        # plt.show()
 
     def splitSignal(self,n):
         newN = ceil(len(self.mainSignal) / n)
@@ -98,7 +98,6 @@ def main():
 
     mySig = ElectrodeManipulator()
     mySig.plotPower()
-
 
 
 if __name__ == '__main__':
