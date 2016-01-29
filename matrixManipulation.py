@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from scipy.fftpack import fft, ifft
+from scipy.fftpack import fft, ifft, rfft, irfft, fftshift
+from scipy import  sin, pi
 from math import ceil
 import scipy.io as sio
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 class SignalManipulator(object):
 
@@ -39,7 +41,7 @@ class SignalManipulator(object):
         plt.xlabel('Time in S')
         plt.title("Signal:\nLetter : {}        Elec = {} ".format(self.targetLetters[numTrial], numElec))
         plt.grid()
-        plt.show()
+        # plt.show()
 
     # def _stft(x, fs, framesz, hop):
     #     framesamp = int(framesz*fs)
@@ -48,19 +50,44 @@ class SignalManipulator(object):
     #     X = scipy.array([scipy.fft(w*x[i:i+framesamp])
     #                     for i in range(0, len(x)-framesamp, hopsamp)])
 
-    def stft(self, numTrial, numElec, frameCutting, hanning):
-        splitedSignal = splitSignal(self.signal[numTrial,:,numElec], frameCutting)
-        #Split the signal in N almost equal pieces
-        mergedSTFT = []
+    # def stft(self, numTrial, numElec, frameCutting, hanning):
+    #     splitedSignal = splitSignal(self.signal[numTrial,:,numElec], frameCutting)
+    #     #Split the signal in N almost equal pieces
+    #     mergedSTFT = []
+    #
+    #     for frame in splitedSignal:
+    #         if hanning:
+    #             w = np.hanning(len(frame))
+    #         else:
+    #             w = [1 for i in range(len(frame))]
+    #
+    #         mergedSTFT.extend(fftshift(fft(w*frame)))
+    #
+    #     return np.array(mergedSTFT)
 
-        for frame in splitedSignal:
-            if hanning:
-                w = np.hanning(len(frame))
-            else:
-                w = [1 for i in range(len(frame))]
-            mergedSTFT.extend(fft(w*frame))
 
-        return mergedSTFT
+def stftForAnySignal(signal, hanning=False):
+
+    splitedSignal = splitSignal(signal,10)
+
+    print(signal[0:10])
+
+    mergedSTFT = []
+
+    for frame in splitedSignal:
+
+        input(frame[0:10])
+
+        if hanning:
+            w = np.hanning(len(frame))
+        else:
+            w = [1 for i in range(len(frame))]
+
+        mergedSTFT.extend(fftshift(fft(w*frame)))
+
+    return np.array(mergedSTFT)
+
+
 
 
 def splitSignal(X,n):
@@ -70,17 +97,43 @@ def splitSignal(X,n):
         yield X[i*newN:i*newN+newN]
     yield X[n*newN-newN:]
 
+def showWindow():
+
+    f0 = 440         # Compute the STFT of a 440 Hz sinusoid
+    fs = 8000        # sampled at 8 kHz
+    T = 5            # lasting 5 seconds
+    framesz = 0.050  # with a frame size of 50 milliseconds
+    hop = 0.025
+
+    t = np.linspace(0, T, T*fs, endpoint=False)
+
+    y = sin(2*pi*f0*t)
+
+    Y = stftForAnySignal(y)
+
+    x = [i for i in range(len(y))]
+
+
+
+    plt.plot(x,Y)
+    plt.grid()
+    plt.show()
+
+
+
+
+
+
+
 def main():
 
 
     myVisu = SignalManipulator()
 
-    myVisu.plotElec(0,0)
-    myVisu.plotPower(0,0,50)
+    #myVisu.plotElec(0,0)
+    #myVisu.plotPower(0,0,20, True)
 
-
-
-
+    showWindow()
 
 if __name__ == '__main__':
     main()
