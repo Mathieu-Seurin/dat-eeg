@@ -1,84 +1,103 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from scipy.fftpack import fft, ifft
-from math import ceil
+from scipy.fftpack import fft, ifft, fftshift
+from scipy import  sin, pi, ceil
 import scipy.io as sio
+
 import numpy as np
+from numpy import ceil
+
 import matplotlib.pyplot as plt
 
-class SignalManipulator(object):
+class SignalHandler(object):
 
-    def __init__(self, fileName="BCI/Subject_A_Train.mat"):
-        dataX = sio.loadmat(fileName)
-        self.signal = dataX['Signal']
-        self.targetLetters = dataX['TargetChar'][0]
-        self.freq = 240 #Hz : Fréquence d'échantillonage du signal
-        self.x = x = np.linspace(0,7794/self.freq,7794)
+    def __init__(self, signal, fs=240):
 
-    def plotPower(self, numTrial, numElec, frameCutting, hanning=False):
-        powerSig = self.stft(numTrial, numElec, frameCutting, hanning=False)
+        self.mainSignal = signal
+
+        self.fs = fs
+        self.numPoints = len(self.mainSignal)
+        self.duration = fs/self.numPoints
+
+        self.x = np.linspace(0, self.duration, self.numPoints, endpoint=False)
+
+    def plotSignal(self):
+
+        plt.plot(self.x,self.mainSignal)
+        plt.ylabel('mV')
+        plt.xlabel('Time in S')
+        plt.title("Signal")
+        plt.grid()
+        plt.show()
+
+    def splitSignal(self,n):
+        newN = ceil(len(self.mainSignal) / n)
+        for i in range(0, n-1):
+            yield self.mainSignal[i*newN:i*newN+newN]
+        yield self.mainSignal[n*newN-newN:]
+
+
+    def stft(self, hanning=False, numWindow=4):
+
+        splitedSignal = self.splitSignal(numWindow)
+
+        mergedSTFT = []
+        for frame in splitedSignal:
+            if hanning:
+                w = np.hanning(len(frame))
+            else:
+                w = [1 for i in range(len(frame))]
+            mergedSTFT.extend(fftshift(fft(w*frame)))
+
+        return np.array(mergedSTFT)
+
+
+class ElectrodeManipulator(SignalHandler):
+
+    def __init__(self, fileName="BCI/Subject_A_Train.mat", numTrial=0, numElec=0):
+
+        self.data = sio.loadmat(fileName)
+        print(self.data.keys())
+        self.targetLetters = self.data['TargetChar'][0]
+        self.numTrial = numTrial
+        self.numElec = numElec
+        self.mainSignal = self.data['Signal'][numTrial,:,numElec]
+        self.fs = 240 #Hz : Fréquence d'échantillonage du signal
+        self.numPoints = len(self.mainSignal)
+        self.duration = self.numPoints/self.fs
+
+        self.x = np.linspace(0,self.duration,self.numPoints)
+
+    def plotPower(self, hanning=False, numWindow=4):
+
+        powerSig = self.stft(hanning, numWindow)
 
         print(len(powerSig))
 
         plt.plot(self.x,powerSig)
         plt.ylabel('FreqPower')
         plt.xlabel('Time in S')
-        plt.title("Power Signal :\nLetter : {}  Elec = {}".format(self.targetLetters[numTrial], numElec))
+        plt.title("Power Signal :\nLetter : {}  Elec = {}".format(self.targetLetters[self.numTrial], self.numElec))
         plt.grid()
         plt.show()
 
-    def plotElec(self, numTrial, numElec):
-        if not(numTrial in range(0,85) and numElec in range(64)):
-            raise ValueError("Trial must be in [0,84] and number of Electrode in [0,63]")
-
-        y = self.signal[numTrial, :, numElec]
-
-        plt.plot(self.x,y)
-        plt.ylabel('mV')
-        plt.xlabel('Time in S')
-        plt.title("Signal:\nLetter : {}        Elec = {} ".format(self.targetLetters[numTrial], numElec))
-        plt.grid()
-        plt.show()
-
-    # def _stft(x, fs, framesz, hop):
-    #     framesamp = int(framesz*fs)
-    #     hopsamp = int(hop*fs)
-    #     w = scipy.hanning(framesamp)
-    #     X = scipy.array([scipy.fft(w*x[i:i+framesamp])
-    #                     for i in range(0, len(x)-framesamp, hopsamp)])
-
-    def stft(self, numTrial, numElec, frameCutting, hanning):
-        splitedSignal = splitSignal(self.signal[numTrial,:,numElec], frameCutting)
-        #Split the signal in N almost equal pieces
-        mergedSTFT = []
-
-        for frame in splitedSignal:
-            if hanning:
-                w = np.hanning(len(frame))
-            else:
-                w = [1 for i in range(len(frame))]
-            mergedSTFT.extend(fft(w*frame))
-
-        return mergedSTFT
 
 
-def splitSignal(X,n):
-
-    newN = ceil(len(X) / n)
-    for i in range(0, n-1):
-        yield X[i*newN:i*newN+newN]
-    yield X[n*newN-newN:]
 
 def main():
+    f0 = 10
+    fs = 240
+    T = 1
 
+    x = np.linspace(0, fs*T, fs)
+    signal = sin(2*pi*f0*x)
 
-    myVisu = SignalManipulator()
+    mySig = SignalHandler(signal, fs)
+    mySig.plotSignal()
 
-    myVisu.plotElec(0,0)
-    myVisu.plotPower(0,0,50)
-
-
+    mySig = ElectrodeManipulator()
+    mySig.plotPower()
 
 
 
