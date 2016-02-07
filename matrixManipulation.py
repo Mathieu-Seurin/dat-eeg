@@ -101,7 +101,7 @@ class SignalHandler(object):
 
     def multiplePlot(self):
 
-        plt.subplot(4,1,1) #NORMAL
+        plt.subplot(4,2,1) #NORMAL
 
         plt.plot(self.x,self.mainSignal)
         plt.ylabel('mV')
@@ -109,7 +109,7 @@ class SignalHandler(object):
         plt.title("Signal")
         plt.grid()
 
-        plt.subplot(4,1,2) #FFT
+        plt.subplot(4,2,2) #FFT
 
         y = abs(fft(self.mainSignal))
         x = fftfreq(len(self.mainSignal), 1/240)
@@ -118,7 +118,7 @@ class SignalHandler(object):
         plt.grid()
 
 
-        plt.subplot(4,1,3) #STFT hanning
+        plt.subplot(4,2,3) #STFT hanning
 
         powerSig = self.stft()
         x = np.linspace(0,self.duration,len(powerSig))
@@ -129,7 +129,7 @@ class SignalHandler(object):
         plt.title('STFT HANNING')
         plt.grid()
 
-        plt.subplot(4,1,4) #STFT
+        plt.subplot(4,2,4) #STFT
 
         powerSig = self.stft(hanning=False)
         x = np.linspace(0,self.duration,len(powerSig))
@@ -140,6 +140,16 @@ class SignalHandler(object):
         plt.title('STFT')
         plt.grid()
 
+        plt.subplot(4,2,4) #STFT NO OVERLAP
+
+        powerSig = self.stft(hanning=False,frameSize=0.5, hop=0.5)
+        x = np.linspace(0,self.duration,len(powerSig))
+
+        plt.plot(x,absolute(powerSig))
+        plt.ylabel('FreqPower')
+        plt.xlabel('Time in S')
+        plt.title('STFT')
+        plt.grid()
 
         plt.show()
 
