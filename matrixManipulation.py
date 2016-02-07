@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from scipy.fftpack import fft, fftshift
-from scipy import  sin, pi, ceil
+from scipy.fftpack import fft, fftshift, fftfreq
+from scipy import  sin, pi, ceil, array, absolute
 import scipy.io as sio
 
 import numpy as np
@@ -13,7 +13,8 @@ from copy import copy, deepcopy
 
 class SignalHandler(object):
     """
-    Native Object used to manipulate simple signal
+    Native Object used to manipulate a single signal
+    ---------------------------------------------
 
     Use :
         mySignalHandler(signal, frequencySampling)
@@ -47,8 +48,10 @@ class SignalHandler(object):
         plt.show()
 
     def plotFft(self):
-        y = self.afft()
-        plt.plot(self.x,y)
+        y = abs(fft(self.mainSignal))
+        x = fftfreq(len(self.mainSignal), 1/240)
+        plt.plot(x,y)
+        plt.title('FFT')
         plt.show()
 
     def afft(self):
@@ -63,36 +66,89 @@ class SignalHandler(object):
         yield self.mainSignal[n*newN-newN:]
 
 
-    def stft(self, hanning=False, numWindow=4):
+    def stft(self, hanning=True, frameSize=0.5, hop=0.25):
 
-        splitedSignal = self.splitSignal(numWindow)
+        frameAmp = int(self.fs*frameSize)
+        hopAmp = int(self.fs*hop)
+
+        print(frameAmp, hopAmp)
+
+        if hanning:
+            w = np.hanning(frameAmp)
+        else:
+            w = [1 for i in range(frameAmp)]
 
         mergedSTFT = []
-        for frame in splitedSignal:
-            if hanning:
-                w = np.hanning(len(frame))
-            else:
-                w = [1 for i in range(len(frame))]
-            mergedSTFT.extend(np.abs(fftshift(fft(w*frame))))
 
-        return np.array(mergedSTFT)
+        for i in range(0, len(self.mainSignal)-frameAmp, hopAmp):
+            mergedSTFT.extend(fftshift(fft(w*self.mainSignal[i:i+frameAmp])))
 
-    def plotStft(self, hanning=False, numWindow=4):
+        return array(mergedSTFT)
 
-        powerSig = self.stft(hanning, numWindow)
+    def plotStft(self, hanning=True,frameSize=0.5, hop=0.25):
 
-        plt.plot(self.x,powerSig)
+        powerSig = self.stft(hanning,frameSize,hop)
+
+        print(len(powerSig))
+        x = np.linspace(0,self.duration,len(powerSig))
+
+        plt.plot(x,absolute(powerSig))
         plt.ylabel('FreqPower')
         plt.xlabel('Time in S')
+        plt.title('STFT')
         plt.grid()
+        plt.show()
+
+    def multiplePlot(self):
+
+        plt.subplot(4,1,1) #NORMAL
+
+        plt.plot(self.x,self.mainSignal)
+        plt.ylabel('mV')
+        plt.xlabel('Time in S')
+        plt.title("Signal")
+        plt.grid()
+
+        plt.subplot(4,1,2) #FFT
+
+        y = abs(fft(self.mainSignal))
+        x = fftfreq(len(self.mainSignal), 1/240)
+        plt.plot(x,y)
+        plt.title('FFT')
+        plt.grid()
+
+
+        plt.subplot(4,1,3) #STFT hanning
+
+        powerSig = self.stft()
+        x = np.linspace(0,self.duration,len(powerSig))
+
+        plt.plot(x,absolute(powerSig))
+        plt.ylabel('FreqPower')
+        plt.xlabel('Time in S')
+        plt.title('STFT HANNING')
+        plt.grid()
+
+        plt.subplot(4,1,4) #STFT
+
+        powerSig = self.stft(hanning=False)
+        x = np.linspace(0,self.duration,len(powerSig))
+
+        plt.plot(x,absolute(powerSig))
+        plt.ylabel('FreqPower')
+        plt.xlabel('Time in S')
+        plt.title('STFT')
+        plt.grid()
+
+
         plt.show()
 
 class SingleElectrodeProcessor(SignalHandler):
     """
     Class to manipulated one electrode
+    ----------------------------------
 
-    Not supposed to be used alone
-    -----------------------------
+    **Not supposed to be used alone**
     Prefer MultipleElectrodeProcessor
 
     You can (From Signal handler) :
@@ -207,7 +263,6 @@ class MultipleElectrodeProcessor(SingleElectrodeProcessor):
         return newSignal
 
     def get(self, numSession=0, numTrial=0, numElec=0):
-
         return self.allSignalFormated[numSession, numTrial, numElec]
 
 
