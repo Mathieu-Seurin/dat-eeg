@@ -22,7 +22,7 @@ class SignalHandler(object):
             - compute the Short Term Fourier Transform .stft()
             - compute the absolute shifted Fast Fourier Transform shifted .afft()
 
-            - Plot the signal, using .plotSignal()
+            - Plot the signal, using .plot()
             - Plot the Fourier Transform .plotFFT()
             - Plot the Short Term Fourier Transform .plotStft(windowCutting)
 
@@ -34,11 +34,11 @@ class SignalHandler(object):
 
         self.fs = fs #frequency Sampling
         self.numPoints = len(self.mainSignal)
-        self.duration = fs/self.numPoints
+        self.duration = self.numPoints/fs
 
         self.x = np.linspace(0, self.duration, self.numPoints, endpoint=False)
 
-    def plotSignal(self):
+    def plot(self):
         plt.plot(self.x,self.mainSignal)
         plt.ylabel('mV')
         plt.xlabel('Time in S')
@@ -100,24 +100,22 @@ class SingleElectrodeProcessor(SignalHandler):
         - compute the Short Term Fourier Transform .stft()
         - compute the absolute shifted Fast Fourier Transform shifted .afft()
 
-        - Plot the signal, using .plotSignal()
+        - Plot the signal, using .plot()
         - Plot the Fourier Transform .plotFFT()
         - Plot the Short Term Fourier Transform .plotStft(windowCutting)
     """
 
     def __init__(self, fileName="BCI/Subject_A_Train.mat", numSession=0, numElec=0):
 
-        data = sio.loadmat(fileName)
-        self.allSignalUnformated = data['Signal']
-        self.targetLetters = data['TargetChar'][0]
+        self.data = sio.loadmat(fileName)
+        self.allSignalUnformated = self.data['Signal']
+        self.targetLetters = self.data['TargetChar'][0]
         self.numSession = numSession
         self.numElec = numElec
-        self.mainSignal = data['Signal'][numSession,:,numElec]
+        self.mainSignal = self.data['Signal'][numSession,:,numElec]
         self.fs = 240 #Hz : Fréquence d'échantillonage du signal
         self.numPoints = len(self.mainSignal)
         self.duration = self.numPoints/self.fs
-
-        print(self.numPoints)
 
         self.x = np.linspace(0,self.duration,self.numPoints)
 
@@ -130,15 +128,17 @@ class MultipleElectrodeProcessor(SingleElectrodeProcessor):
 
     def __init__(self, fileName="BCI/Subject_A_Train.mat"):
         super().__init__(fileName=fileName)
-        self.allSignalFormated = []
+        #self.reorganizeSignal()
         self.cutAllSignals()
+
 
     def cutAllSignals(self):
         """
         Format used self.allSignalFormated :
-        [   NUM SESSION,  NUM ELEC, NUMTRIAL,      POINT     ]
-         85train 100test | (0,64) |  (0,15)  | (0,504) (0,522)
+        [   NUM SESSION,   NUM ELEC,    NUMTRIAL,      POINT        ]
+         85train 100test |  [0,63]   |  [0,14]  | [0,504] or [0,522]
         """
+        self.allSignalFormated = []
 
         for numSession, session in enumerate(self.allSignalUnformated):
             sessionSignals = []
@@ -153,53 +153,74 @@ class MultipleElectrodeProcessor(SingleElectrodeProcessor):
 
         self.allSignalFormated = np.array(self.allSignalFormated)
 
-        assert len(self.allSignalFormated) == 85
+        assert len(self.allSignalFormated) in (85,100)
         assert len(self.allSignalFormated[0]) == 64
         assert len(self.allSignalFormated[0][0]) == 15
         assert len(self.allSignalFormated[0][0][-1]) == 504
+        assert len(self.allSignalFormated[0][0][0]) == 504
+        assert len(self.allSignalFormated[0][0][1]) == 504
+
+    def reorganizeSignal(self):
+        """
+        Organize all signals in a new fashion
+
+        self.signals['A'] : All trials where the 'letter' is the target and appears on screen (p300 must be in the set)
+        self.signals['letter'] is a np.array of trials
+
+        self.signals['A'][0] : First trial where the letter appears : 64 lists of points
+        self.signals['letter'][X] is a trial made of 64 lists of point (64 electrodes)
+
+        self.signals['A'][0][0]: First electrode where the letter appears : 64 lists of points
+        self.signals['letter'][X] is a trial made of 64 lists of point (64 electrodes)
+
+
+        self.signals['absent'] trial where the target letter is not enlightened
+        self.signals['absent'] is np.array of trial
+                               A trial is made of 64 lists of points (electrode)
+        """
+        self.allSignalFormated = dict()
 
 
 
     def signalCutting(self):
         """
-        Function to Process the signal sent
-        Input : One session of 7794 points (32,475s)
-        Ouput : List of Trial (504 or 522 points)
+        Function to segment the signal into trial (instead of whole session)
+        Input : One session of 7794 points (32,45s)
+        Ouput : List of Trial (504 points)
 
         One session look like this :
 
-        12*175 ms : First Sample 2100 ms : 504 Points
-        12*175 ms : Last Sample 2100 ms : 504 Points
+        12*175 ms : One sample (set of 12 intensification) 2100 ms : 504 Points
 
-        13*(13*75+12*100) ms : 2-14 Samples : 13 x 2175 ms : 13 x 522 points
+        15*504 points : 15 Samples
 
-        Total : 32.475 s = 7794 points at 240Hz
+        7560 points at 240Hz
         """
 
         oldSignal = self.mainSignal
-        newSignal = [ oldSignal[:504] ] #First Trial
+        newSignal = []
 
-        for trial in range(13):
-            newSignal.append( oldSignal[504+trial*522:504+(trial+1)*522] )
-
-        newSignal.append( oldSignal[504+13*522:])
+        for trial in range(15):
+            newSignal.append( oldSignal[trial*504:(trial+1)*504] )
 
         assert len(newSignal)==15
-        print('signalCut')
-
         return newSignal
 
+    def get(self, numSession=0, numTrial=0, numElec=0):
+
+        return self.allSignalFormated[numSession, numTrial, numElec]
 
 
-    def meanSignal(self):
+
+
+    def meanSignal(self, numSession, numElec):
         pass
         #TODO
 
 
+
 def main():
     pass
-
-
 
 if __name__ == '__main__':
     main()

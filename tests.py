@@ -14,16 +14,23 @@ if sys.argv[1] == 'sin':
     signal = sin(2*pi*f0*x)
 
     mySig = SignalHandler(signal, fs)
-    mySig.plotSignal()
+    mySig.plot()
     mySig.plotFft()
+    mySig.plotStft(numWindow=10)
 
 elif sys.argv[1] == 'elec':
 
     mySig = SingleElectrodeProcessor(numSession=10, numElec=10)
-    mySig.plotSignal()
+    mySig.plot()
     mySig.plotFft()
+    mySig.plotStft(numWindow=2)
 
 elif sys.argv[1] == 'cut':
 
     mySig = MultipleElectrodeProcessor()
-    mySig.signalCutting()
+    signal = mySig.get()
+
+    print(len(signal))
+    sample = SignalHandler(signal)
+    sample.plot()
+    sample.plotFft()
