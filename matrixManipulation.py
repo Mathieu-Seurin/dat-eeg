@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 
 from copy import copy, deepcopy
 
+FRAMESIZE = 0.10
+HOPSIZE = 0.05
+
 class SignalHandler(object):
     """
     Native Object used to manipulate a single signal
@@ -43,35 +46,32 @@ class SignalHandler(object):
         plt.plot(self.x,self.mainSignal)
         plt.ylabel('mV')
         plt.xlabel('Time in S')
-        plt.title("Signal")
         plt.grid()
-        plt.show()
 
     def plotFft(self):
         y = abs(fft(self.mainSignal))
-        x = fftfreq(len(self.mainSignal), 1/240)
+        x = fftfreq(len(self.mainSignal), 1.0/240)
         plt.plot(x,y)
-        plt.title('FFT')
-        plt.show()
 
-    def afft(self):
+    def afft(self, signal=None):
         """ Compute the absolute shifted Fast Fourier Transform """
-        return np.abs(fftshift(fft(self.mainSignal)))
+        if signal!=None:
+            padding = np.zeros(np.size(signal,0))
+            signal = np.concatenate((signal, padding))
+            spectrum = fft(signal)
+            return np.abs(spectrum)
+        else:
+            padding = np.zeros(np.size(self.mainSignal,0))
+            signal = np.concatenate((self.mainSignal, padding))
+            spectrum = fft(signal)
+            return np.abs(spectrum)
 
-    def splitSignal(self,n):
-
-        newN = ceil(self.numPoints/ n)
-        for i in range(0, n-1):
-            yield self.mainSignal[i*newN:i*newN+newN]
-        yield self.mainSignal[n*newN-newN:]
 
 
-    def stft(self, hanning=True, frameSize=0.5, hop=0.25):
+    def stft(self, hanning=True, frameSize=FRAMESIZE, hop=HOPSIZE):
 
         frameAmp = int(self.fs*frameSize)
         hopAmp = int(self.fs*hop)
-
-        print(frameAmp, hopAmp)
 
         if hanning:
             w = np.hanning(frameAmp)
@@ -81,77 +81,51 @@ class SignalHandler(object):
         mergedSTFT = []
 
         for i in range(0, len(self.mainSignal)-frameAmp, hopAmp):
-            mergedSTFT.extend(fftshift(fft(w*self.mainSignal[i:i+frameAmp])))
+            fftshifted = self.afft(w*self.mainSignal[i:i+frameAmp])
+            mergedSTFT.append(fftshifted[:len(fftshifted)//2]/frameAmp)
 
-        return array(mergedSTFT)
+        print(len(mergedSTFT[0]))
+        print(mergedSTFT[0])
 
-    def plotStft(self, hanning=True,frameSize=0.5, hop=0.25):
+        return array(mergedSTFT).transpose()
 
+    def plotStft(self, hanning=True,frameSize=FRAMESIZE, hop=HOPSIZE):
+
+        T = len(self.mainSignal)/self.fs
         powerSig = self.stft(hanning,frameSize,hop)
+        freq = fftfreq(len(powerSig[0]), 1.0/240)
 
-        print(len(powerSig))
-        x = np.linspace(0,self.duration,len(powerSig))
-
-        plt.plot(x,absolute(powerSig))
-        plt.ylabel('FreqPower')
+        plt.imshow(powerSig, origin='lower', extent=[0,T,0,120],aspect='auto')
+        plt.ylabel('Frequency')
         plt.xlabel('Time in S')
-        plt.title('STFT')
-        plt.grid()
-        plt.show()
 
     def multiplePlot(self):
 
         plt.subplot(4,2,1) #NORMAL
-
-        plt.plot(self.x,self.mainSignal)
-        plt.ylabel('mV')
-        plt.xlabel('Time in S')
-        plt.title("Signal")
-        plt.grid()
+        self.plot()
 
         plt.subplot(4,2,2) #FFT
-
-        y = abs(fft(self.mainSignal))
-        x = fftfreq(len(self.mainSignal), 1/240)
-        plt.plot(x,y)
-        plt.title('FFT')
-        plt.grid()
-
+        self.plotFft()
 
         plt.subplot(4,2,3) #STFT hanning
-
-        powerSig = self.stft()
-        x = np.linspace(0,self.duration,len(powerSig))
-
-        plt.plot(x,absolute(powerSig))
-        plt.ylabel('FreqPower')
-        plt.xlabel('Time in S')
-        plt.title('STFT HANNING')
-        plt.grid()
+        self.plotStft(hanning=True)
 
         plt.subplot(4,2,4) #STFT
+        self.plotStft(hanning=False)
 
-        powerSig = self.stft(hanning=False)
-        x = np.linspace(0,self.duration,len(powerSig))
+        plt.subplot(4,2,5) #STFT NO OVERLAP
+        self.plotStft(hanning=False,frameSize=FRAMESIZE, hop=FRAMESIZE)
 
-        plt.plot(x,absolute(powerSig))
-        plt.ylabel('FreqPower')
-        plt.xlabel('Time in S')
-        plt.title('STFT')
-        plt.grid()
 
-        plt.subplot(4,2,4) #STFT NO OVERLAP
+        plt.subplot(4,2,6) #STFT Shorter Window
+        self.plotStft(hanning=True,frameSize=FRAMESIZE/2, hop=HOPSIZE/2)
 
-        powerSig = self.stft(hanning=False,frameSize=0.5, hop=0.5)
-        x = np.linspace(0,self.duration,len(powerSig))
+        plt.subplot(4,2,7) #STFT Shorter Window
+        self.plotStft(hanning=True,frameSize=FRAMESIZE/4, hop=HOPSIZE/4)
 
-        plt.plot(x,absolute(powerSig))
-        plt.ylabel('FreqPower')
-        plt.xlabel('Time in S')
-        plt.title('STFT')
-        plt.grid()
+        plt.subplot(4,2,8) #STFT Shorter Window
+        self.plotStft(hanning=True,frameSize=FRAMESIZE/8, hop=HOPSIZE/8)
 
-        plt.show()
 
 class SingleElectrodeProcessor(SignalHandler):
     """
@@ -226,26 +200,6 @@ class MultipleElectrodeProcessor(SingleElectrodeProcessor):
         assert len(self.allSignalFormated[0][0][0]) == 504
         assert len(self.allSignalFormated[0][0][1]) == 504
 
-    def reorganizeSignal(self):
-        """
-        Organize all signals in a new fashion
-
-        self.signals['A'] : All trials where the 'letter' is the target and appears on screen (p300 must be in the set)
-        self.signals['letter'] is a np.array of trials
-
-        self.signals['A'][0] : First trial where the letter appears : 64 lists of points
-        self.signals['letter'][X] is a trial made of 64 lists of point (64 electrodes)
-
-        self.signals['A'][0][0]: First electrode where the letter appears : 64 lists of points
-        self.signals['letter'][X] is a trial made of 64 lists of point (64 electrodes)
-
-
-        self.signals['absent'] trial where the target letter is not enlightened
-        self.signals['absent'] is np.array of trial
-                               A trial is made of 64 lists of points (electrode)
-        """
-        self.allSignalFormated = dict()
-
 
 
     def signalCutting(self):
@@ -274,8 +228,6 @@ class MultipleElectrodeProcessor(SingleElectrodeProcessor):
 
     def get(self, numSession=0, numTrial=0, numElec=0):
         return self.allSignalFormated[numSession, numTrial, numElec]
-
-
 
 
     def meanSignal(self, numSession, numElec):

@@ -4,20 +4,23 @@
 from matrixManipulation import *
 import sys
 
-f0 = 10
+f0 = 40
 fs = 240
-T = 1
+T = 2
 
 if sys.argv[1] == 'sin':
 
     x = np.linspace(0, T, fs*T, fs)
-    signal = sin(2*pi*f0*x)+sin(2*pi*(f0/2)*x)
 
+    signal = sin(2*pi*f0*x) #40Hz
+    signal += sin(2*pi*2*f0*x) #80Hz
+
+
+    signal = np.concatenate((signal, sin(2*pi*1.75*f0*x))) #Then 70Hz
     mySig = SignalHandler(signal, fs)
     mySig.multiplePlot()
 
     # mySig.plot()
-    # mySig.plotFft()
     # mySig.plotStft()
 
 elif sys.argv[1] == 'elec':
@@ -31,7 +34,7 @@ elif sys.argv[1] == 'elec':
 elif sys.argv[1] == 'cut':
 
     mySig = MultipleElectrodeProcessor()
-    signal = mySig.get()
+    signal = mySig.get(0,0,7)
 
     sample = SignalHandler(signal)
     sample.multiplePlot()
@@ -40,4 +43,6 @@ elif sys.argv[1] == 'cut':
     # sample.plot()
     # sample.plotFft()
     # sample.plotStft()
-    # plt.show()
+
+
+plt.show()
