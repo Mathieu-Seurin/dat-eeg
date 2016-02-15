@@ -13,7 +13,22 @@ def savePartOfData(filenameI, filenameO):
     np.save(filenameO, miniData)
     np.save('BCI/yFile', y)
 
-data = sio.loadmat("BCI/Subject_A_Train_reshaped.mat")
+def reformatRawData(filenameI):
+    data = sio.loadmat(filenameI)
+    data = np.array(data['X'])
+
+    newData = []
+
+    for exemple in np.size(data,3):
+        newData.append(np.concatenate( (data[i,exemple,:] for i in range(64))))
+
+    print( newData[5][:160]) )
+    print( data[0,:,5] )
+
+
+
+
+
 
 # savePartOfData("BCI/Subject_A_Train_reshaped.mat", "BCI/quickTest")
 
