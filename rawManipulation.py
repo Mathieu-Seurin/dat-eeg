@@ -6,10 +6,8 @@ from scipy import  sin, pi, ceil, array, absolute
 import scipy.io as sio
 
 import numpy as np
-
 import matplotlib.pyplot as plt
 
-from copy import copy, deepcopy
 
 FRAMESIZE = 0.10
 HOPSIZE = 0.05

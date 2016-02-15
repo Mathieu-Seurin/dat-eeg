@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from matrixManipulation import *
+from rawManipulation import *
 import sys
 
 f0 = 40
