@@ -1,57 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
 
+#Perso
+from signalManipulation import *
+from manipulateData import *
+
+#Module
+import pickle
+from sklearn import svm, grid_search
+from sklearn.linear_model import ElasticNet
+from sklearn.metrics import r2_score
+
+#Const
 PATHTODATA = 'BCI/'
 PATHTOMODEL = 'Models/'
-
-from rawManipulation import *
-from sklearn import svm
-import pickle
-
-def savePartOfData(filenameI, filenameO):
-    data = sio.loadmat("{}{}".format(PATHTODATA, filenameI))
-    miniData = np.array(data['X'][0])
-    miniData = miniData.transpose()
-    y = [elem[0] for elem in data['y']]
-
-    np.save(filenameO, miniData)
-    np.save('{}fullY'.format(PATHTODATA), y)
-
-def reformatStftData(filenameI):
-    #TODO
-    data = sio.loadmat(filenameI)
-    data = np.array(data['X'])
-
-def reformatRawData(filenameI, filenameO):
-    data = sio.loadmat("{}{}".format(PATHTODATA, filenameI))
-    data = np.array(data['X'])
-
-    numExemple = np.size(data,2)
-    newData = np.empty([numExemple, 64*160])
-
-    for exemple in range(np.size(data,2)):
-        newData[exemple, :] = np.concatenate( [data[i,:,exemple] for i in range(64)])
-
-    np.save('{}{}'.format(PATHTODATA, filenameO), newData)
-
-def saveSplitted(trainX, trainY, testX, testY):
-    np.save('{}trainRawX'.format(PATHTODATA), trainX)
-    np.save('{}trainY'.format(PATHTODATA), trainY)
-    np.save('{}cvRawX'.format(PATHTODATA), testX)
-    np.save('{}cvY'.format(PATHTODATA), testY)
-
-
-def splitXY(fileX='AfullRawX.npy', fileY='AfullY.npy', split=0.6, random=False):
-    X = np.load('{}{}'.format(PATHTODATA, fileX))
-    y = np.load('{}{}'.format(PATHTODATA, fileY))
-
-    numIndex = int(np.size(X,0)*split)
-
-    if not random:
-        saveSplitted(X[:numIndex], y[:numIndex], X[numIndex:], y[numIndex:])
-    else:
-        indexes = np.random.random_integers(0,np.size(X,0)-1, numIndex)
-        saveSplitted(X[indexes], y[indexes], np.delete(X,indexes,0), np.delete(y,indexes,0))
 
 def learnData(fileX='trainRawX.npy', fileY='trainY.npy', C=1, modelType='linear'):
     X = np.load("{}{}".format(PATHTODATA, fileX))
@@ -66,10 +28,8 @@ def learnData(fileX='trainRawX.npy', fileY='trainY.npy', C=1, modelType='linear'
     clf.fit(X,y)
     pickle.dump(clf, open('{}model{}{}'.format(PATHTOMODEL, C, modelType), 'wb'))
 
-
 def evalModel(fileTrainX='trainRawX.npy', fileTrainY='trainY.npy',fileCvX='cvRawX.npy', fileCvY='cvY.npy', C=1, modelType='linear'):
     def _subEval(X, y, classif, C, modelType, dataset):
-
         numExemple = np.size(X,0)
         predX = clf.predict(X)
         results = predX == y
@@ -90,11 +50,9 @@ def evalModel(fileTrainX='trainRawX.npy', fileTrainY='trainY.npy',fileCvX='cvRaw
     _subEval(Xtrain, ytrain, clf, C, modelType, 'train')
     _subEval(Xcv, ycv, clf, C, modelType, 'Cross Val')
 
-
 def fullTest(C=1, modelType='linear'):
     learnData(C=C, modelType=modelType)
     evalModel(C=C, modelType=modelType)
-
 
 def testTemplate(models, numRepetition, resplit=True, linear=True, nonlinear=False):
 
@@ -109,6 +67,31 @@ def testTemplate(models, numRepetition, resplit=True, linear=True, nonlinear=Fal
             if nonlinear:
                 fullTest(C=c, modelType='nonlinear')
 
+# party = np.array([i for i in range(30)])
+# X = np.concatenate((np.array([[-i,-i] for i in range(30)]), -np.array([[-i,-i] for i in range(30)]),\
+#                     np.array([[-i,-i] for i in range(40,80)]), -np.array([[-i,-i] for i in range(40,80)])))
+# y = np.concatenate((np.array([1 for i in range(30)]), -np.array([1 for i in range(30)]),\
+#                     np.array([1 for i in range(40,80)]), -np.array([1 for i in range(40,80)])))
 
-models = [2, 5]
-testTemplate(models, 2, resplit=True, linear=False, nonlinear=True)
+X = np.load('{}{}'.format(PATHTODATA, 'trainRawX.npy'))
+y = np.load('{}{}'.format(PATHTODATA, 'trainY.npy'))
+
+print(X.shape)
+
+Xtest = np.load('{}{}'.format(PATHTODATA, 'cvRawX.npy'))
+ytest = np.load('{}{}'.format(PATHTODATA, 'cvY.npy'))
+
+gamma_range = np.logspace(-9, 2, 5)
+parameters = {'gamma': gamma_range, 'C':[0.8,1,2,3, 1e6, 1e8]}
+classif = svm.linearSVC()
+clf = grid_search.GridSearchCV(classif, parameters, cv=10, n_jobs=2)
+print("Begin\n...")
+clf.fit(X,y)
+best = clf.best_estimator_
+print(clf.best_params_, clf.best_score_)
+print("Saving Model")
+
+pickle.dump(best, open('{}modelGridSearch'.format(PATHTOMODEL), 'wb'))
+
+print(r2_score(y, best.predict(X)))
+print(r2_score(ytest, best.predict(Xtest)))
