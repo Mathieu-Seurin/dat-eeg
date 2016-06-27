@@ -7,23 +7,38 @@ import os
 import sys
 
 test = sys.argv[1]
+subject = 'A'
+freqMin = float(sys.argv[2])
+freqMax = float(sys.argv[3])
+decimation = int(sys.argv[4])
+
 frameSize = 0.2
 
 
 if test == 'stftMatRaw':
-    subject = 'A'
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject))
-    reformatStftDataMatrix("{}fullRawX.npy".format(subject), 'Raw', 240, frameSize=frameSize,outputFormat='npy') 
+    reformatStftDataMatrix("{}fullRawX.npy".format(subject), 'Raw', 240, frameSize=frameSize,outputFormat='npy')
+
+elif test == 'stft':
+    prepareFilteredStft(subject,freqMin,freqMax,decimation,frameSize)
     
 elif test == 'stftMatFilter':
-    subject = 'A'
-    freqMin = float(sys.argv[2])
-    freqMax = float(sys.argv[3])
-    decimation = int(sys.argv[4])
-
+    
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     reformatStftDataMatrix(
         "{}fullFiltered{}_{}_{}RawX.npy".format(subject, freqMin, freqMax, decimation),
-        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat='mat') 
+        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat='mat')
+
+
+    Xmat = np.load(PATH_TO_DATA+"{}fullFiltered{}StftMatrix{}X.npy".format(subject, decimation, frameSize))
+    Xvec = np.load(PATH_TO_DATA+"{}fullFiltered{}Stft{}X.npy".format(subject, decimation, frameSize))
+    t1m = Xmat[0]
+    t1v = Xvec[0,:]
+
+    print t1m
+    print t1m.size
+    
+    print t1v
+    print t1v.size
