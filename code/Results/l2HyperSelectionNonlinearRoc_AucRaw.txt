@@ -1,9 +1,0 @@
-1e-05 1e-05 1.0 0.0
-Best Params : {'C': 1.0000000000000001e-05, 'gamma': 1.0000000000000001e-05} Score CrossVal : 1.0 
-[[50  0]
- [ 0 50]]
-[[50  0]
- [ 0 50]]
-Accuracy Train : 1.0  Accuracy Test : 1.0 
-F1 Train : 1.0  F1 Test : 1.0 
-Roc_Auc Train : 1.0  Roc_Auc Test : 1.0 
