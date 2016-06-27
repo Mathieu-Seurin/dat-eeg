@@ -21,7 +21,7 @@ RESULTS_PATH = 'Results/'
 
 
 def writeResults(results, best_params, best_score, modelType, penalty, scoreType,\
-                 transformedData, scores):
+                 transformedData, scores=None):
     """
     Write results of a grid_search in a file
     [parameters] [score] [STD]
@@ -55,21 +55,26 @@ def writeResults(results, best_params, best_score, modelType, penalty, scoreType
         for model in results:
             print(model)
             strScores += "{:.4} {} {} {}\n".format(model[0]['alpha'], model[0]['l1_ratio'], model[1], np.std(model[2]))
-    else: #Linear, C is the only parameters
+    else: #Linear, C is the only parameter
         for model in results:
             print(model)
             strScores += "{:.4} {} {}\n".format(model[0]['C'], model[1], np.std(model[2]))
  
-    strScores += "{}\n{}\n".format(str(scores['cMatrixTrain']), str(scores['cMatrixTest']))
 
     strScores += "Best Params : {} Score CrossVal : {} \n".format(best_params, best_score)
-    strScores += "Accuracy Train : {}  Accuracy Test : {} \n".format(scores['accTrain'],\
-                                                                     scores['accTest'])
-    strScores += "F1 Train : {}  F1 Test : {} \n".format(scores['f1Train'], scores['f1Test'])
-    strScores += "Roc_Auc Train : {}  Roc_Auc Test : {} \n".format(scores['rocTrain'],\
-                                                                   scores['rocTest'])
 
-    
+    if scores:
+        strScores += "{}\n{}\n".format(str(scores['cMatrixTrain']),\
+                                       str(scores['cMatrixTest']))
+
+        strScores += "Accuracy Train : {}  Accuracy Test : {} \n".format(scores['accTrain'], scores['accTest'])
+        strScores += "F1 Train : {}  F1 Test : {} \n".format(scores['f1Train'],\
+                                                             scores['f1Test'])
+        strScores += "Roc_Auc Train : {}  Roc_Auc Test : {} \n".format(scores['rocTrain'],                                                                       scores['rocTest'])
+    else:
+        print("No Test file")
+        strScores += "\nNo Test file\n=========\n"
+        
     f = open("{}{}HyperSelection{}{}{}.txt".format(RESULTS_PATH, penalty, modelType.title(), scoreType.title(), transformedData.title()), 'w')
     f.write(strScores)
     f.close()
@@ -100,13 +105,29 @@ def getScores(y, yPredTrain, yTest, yPredTest):
 
     return scores
 
+def testModel(best,X,y,xTest,yTest,penalty):
+    
+    print("Predicting Data :")
+    yPredTrain = best.predict(X)
+    yPredTest = best.predict(xTest)
+    scores = getScores(y, yPredTrain, yTest, yPredTest)
+
+    if penalty=='l1':
+        saveNonZerosCoef(best, 'l1', dataType=transformedData)
+        analyzeCoef(dataType=transformedData, reg='l1')
+
+    return scores
+
 def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
     """
     Grid Search over a set of parameters for linear model
     """
+    #Check if test is empty, if it is, don't refit and predict data
+    testAvailable = np.size(xTest,0)!=0
+
     # Parameters selection
     #====================
-    cRange = np.logspace(-5,1,7)
+    cRange = np.logspace(-5,2,8)
     parameters = {'C': cRange}
 
     if penalty=='l1':
@@ -114,63 +135,65 @@ def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=
     else:
         dual=True
 
-    #Creating Model and begin classification
+    #Creating Model and begin classificatin
     #=======================================
-    classif = svm.LinearSVC(penalty=penalty, class_weight='balanced',  dual=dual)
-    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
+    classif = svm.LinearSVC(penalty=penalty, class_weight='auto',  dual=dual)
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3, refit=testAvailable)
     print("Begin\n...")
     clf.fit(X,y)
 
     
     #Get results, print and write them into a file
     #============================================
-    best = clf.best_estimator_
     print(clf.best_params_, clf.best_score_)
 
-    print("Predicting Data :")
-    yPredTrain = best.predict(X)
-    yPredTest = best.predict(xTest)
-
-    scores = getScores(y, yPredTrain, yTest, yPredTest)
+    if testAvailable:
+        scores = testModel(clf.best_estimator_,X,y,xTest,yTest,penalty)
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'Linear',\
+                     penalty,scoring, transformedData, scores=scores)
+    else:
+        print("No test, don't predict data")
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'Linear',\
+                     penalty,scoring, transformedData, scores=None)
     
-    writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
-                 'Linear', penalty, scoring, transformedData, scores)
-
-    if penalty=='l1':
-        saveNonZerosCoef(best, 'l1', dataType=transformedData)
-        analyzeCoef(dataType=transformedData, reg='l1')
 
 
 def learnHyperNonLinear(X, y, xTest, yTest, scoring, transformedData,jobs=1):
     """
     Grid Search over a set of parameters for a non-linear model
     """
+    #Check if test is empty, if it is, don't refit and predict data
+    testAvailable = np.size(xTest,0)!=0
+    
+
     # Parameters selection
     #====================
-    cRange = np.logspace(-5,1,7)
-    gRange = np.logspace(-5,1,7)
+    cRange = np.logspace(-5,1,1)
+    gRange = np.logspace(-5,1,1)
     parameters = {'C': cRange, 'gamma':gRange}
     
     #Creating Model and begin classification
     #=======================================
-    classif = svm.SVC(class_weight='balanced')
-    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs,verbose=3)
+    classif = svm.SVC(class_weight='auto')
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs,verbose=3,refit=testAvailable)
     print("Begin\n...")
     clf.fit(X,y)
 
     #Get results, print and write them into a file
     #============================================
-    best = clf.best_estimator_
     print(clf.best_params_, clf.best_score_)
+        
+    if testAvailable:
+        scores = testModel(clf.best_estimator_,X,y,xTest,yTest,'l2')
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
+                     'NonLinear', 'l2', scoring, transformedData, scores=scores)
 
-    print("Predicting Data :")
-    yPredTrain = best.predict(X)
-    yPredTest = best.predict(xTest)
-
-    scores = getScores(y, yPredTrain, yTest, yPredTest)
+        
+    else:
+        print("No test, don't predict data")
     
-    writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
-                 'NonLinear', 'l2', scoring, transformedData, scores)
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
+        'NonLinear', 'l2', scoring, transformedData, scores=None)
 
                 
 def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
@@ -194,16 +217,17 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
     best = clf.best_estimator_
     print(clf.best_params_, clf.best_score_)
 
-    print("Predicting Data :")
-    yPredTrain = best.predict(X)
-    yPredTrain[yPredTrain >= 0] = 1
-    yPredTrain[yPredTrain < 0] = -1
-    
-    yPredTest = best.predict(xTest)
-    yPredTest[yPredTest >= 0] = 1
-    yPredTest[yPredTest < 0] = -1
-    
-    scores = getScores(y, yPredTrain, yTest, yPredTest)
+    if np.size(a,0)!=0:
+        print("Predicting Data :")
+        yPredTrain = best.predict(X)
+        yPredTrain[yPredTrain >= 0] = 1
+        yPredTrain[yPredTrain < 0] = -1
+
+        yPredTest = best.predict(xTest)
+        yPredTest[yPredTest >= 0] = 1
+        yPredTest[yPredTest < 0] = -1
+
+        scores = getScores(y, yPredTrain, yTest, yPredTest)
     
     writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
                  'ElasticNet', 'l1l2', scoring, transformedData, scores)

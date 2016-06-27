@@ -6,8 +6,6 @@ from manipulateData import *
 import os
 import sys
 
-frameSize = 0.2
-
 class ArgumentError(Exception): pass
     
 USAGE = """USAGE :
@@ -39,7 +37,7 @@ elif len(sys.argv) < 3:
 else:
     data = sys.argv[1]
     params = sys.argv[2]
-    copyResults = len(sys.argv)>3
+    copyResults = len(sys.argv) > 3
 
     toPrint = "{} data, {} Model, ".format(data, params)
     if not copyResults: toPrint += "don't "

@@ -87,18 +87,18 @@ class SignalHandler(object):
 
         for i in range(0, len(self.mainSignal)-frameAmp, hopAmp):
             fftshifted = self.afft(w*self.mainSignal[i:i+frameAmp])
-            mergedSTFT.append(fftshifted[:np.ceil(len(fftshifted)/2)]/frameAmp)
+            mergedSTFT.append(fftshifted[:np.ceil(float(len(fftshifted))/2)]/frameAmp)
 
             # print(len(mergedSTFT), len(mergedSTFT[0]))
             # print(mergedSTFT[0])
-        return array(mergedSTFT).transpose()
+        return array(mergedSTFT).T
 
     def plotStft(self, frameSize, hanning=True):
 
         powerSig = self.stft(frameSize, hanning=hanning)
 
         _, numWindows = powerSig.shape
-        T = numWindows*frameSize/2
+        T = float(numWindows*frameSize)/2
         freq = fftfreq(len(powerSig[:,0]), 1.0/self.fs)
 
         plt.imshow(powerSig, origin='lower', extent=[0,T,0,np.max(freq)],aspect='auto')
@@ -152,8 +152,8 @@ class SignalHandler(object):
 
     def _createFilter(self, lowcut, highcut, order=5):
         nyq = 0.5 * self.fs
-        low = lowcut / nyq
-        high = highcut / nyq
+        low = float(lowcut) / nyq
+        high = float(highcut) / nyq
         self.b, self.a = butter(order, [low, high], btype='band')
 
     def filterSig(self, order, lowcut, highcut, decimationFactor):

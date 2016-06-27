@@ -59,8 +59,6 @@ elif sys.argv[1] == 'filter':
 
     # mySig.plotFiltered()
 
-
-
 elif sys.argv[1] == 'wavelets':
 
     raise NotImplementedYet("Need Package wavelets")
