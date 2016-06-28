@@ -106,7 +106,7 @@ elif data=='AF8':
 
 elif data=='AFS':
 
-    X,y,xTest,yTest = prepareFilteredStft('A',0.5,30,4, 0.1)
+    X,y,xTest,yTest = prepareFilteredStft('A',0.5,10,8,0.2)
     dataType = 'filtered4Stft0.1'
 
 elif data=='AF8S':
@@ -140,11 +140,11 @@ else :
 
 if params=='lin':
     
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType,jobs=3)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType,jobs=4)
 
 elif params=='nonLin':
     
-    learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType)
+    learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType,jobs=4)
 
 elif params == 'elastic' :
 
@@ -171,10 +171,7 @@ elif params == 'step':
     learnStep(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=3)
 
 elif params == 'elec':
-    learnElec(X, y, xTest, yTest, 'l2', 'f1', transformedData=dataType,jobs=4)
-
-elif params == 'elecU':
-    learnElecUnbiasedFaster(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=4)
+    learnElecFaster(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=4)
     
 else :
     print(USAGE)

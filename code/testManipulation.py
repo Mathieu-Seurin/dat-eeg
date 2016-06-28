@@ -29,7 +29,7 @@ elif test == 'stftMatFilter':
 
     reformatStftDataMatrix(
         "{}fullFiltered{}_{}_{}RawX.npy".format(subject, freqMin, freqMax, decimation),
-        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat='mat')
+        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat='npy')
 
 
     Xmat = np.load(PATH_TO_DATA+"{}fullFiltered{}StftMatrix{}X.npy".format(subject, decimation, frameSize))

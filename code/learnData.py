@@ -135,7 +135,7 @@ def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=
     else:
         dual=True
 
-    #Creating Model and begin classificatin
+    #Creating Model and begin classification
     #=======================================
     classif = svm.LinearSVC(penalty=penalty, class_weight='auto',  dual=dual)
     clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3, refit=testAvailable)
@@ -168,8 +168,8 @@ def learnHyperNonLinear(X, y, xTest, yTest, scoring, transformedData,jobs=1):
 
     # Parameters selection
     #====================
-    cRange = np.logspace(-5,1,1)
-    gRange = np.logspace(-5,1,1)
+    cRange = np.logspace(-5,2,8)
+    gRange = np.logspace(-5,2,8)
     parameters = {'C': cRange, 'gamma':gRange}
     
     #Creating Model and begin classification
@@ -295,7 +295,7 @@ def analyzeCoef(dataType, reg):
 
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='balanced')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
     cRange = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1, 10]
     parameters = {'C': cRange}
 
@@ -366,118 +366,19 @@ def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
         if numFailed > 3:
             scoreDecrease = True
 
-def learnElec(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='balanced')
-    cRange = [1e-6, 1e-5, 1e-4, 1e-3]
-    parameters = {'C': cRange}
 
-    best_score = 0
-    best_selection = []
-    keptElec = np.ones(64, dtype=bool)
-
-    copyX = copy(X)
-    copyXTest = copy(xTest)
-
-    scores = np.zeros(64)
-    scoreDecrease = False
-    numFailed = 0
+def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
     
-    while not scoreDecrease:
-
-        scores[:] = 0
-
-        for elec in range(64):
-            if not keptElec[elec] :
-                continue
-            else:
-                erased = list(np.where(keptElec==False)[0])
-                
-                if erased != []:
-                    erased.append(elec)
-                    X = delElec(X, erased, transformedData)
-                    xTest = delElec(xTest, erased, transformedData)
-                else:
-                    X = delElec(X,elec, transformedData)
-                    xTest = delElec(xTest, elec, transformedData)
-
-                print("Learning Model without elec N°",elec)
-
-                clf = grid_search.GridSearchCV(baseClf, parameters, scoring=scoring,\
-                                               cv=5, n_jobs=jobs, verbose=1)
-                clf.fit(X,y)
-
-                best = clf.best_estimator_
-                print(clf.best_params_, clf.best_score_)
-
-                yPredTest = best.predict(xTest)
-
-                if scoring=='f1':
-                    scores[elec] = f1_score(yTest, yPredTest)
-                    print('ROC : ',roc_auc_score(yTest, yPredTest))
-
-                else:
-                    scores[elec] = roc_auc_score(yTest, yPredTest)
-
-                print(scores[elec])
-                    
-                #post process :
-                X = copy(copyX)
-                xTest = copy(copyXTest)
-                
-        worstElec = np.argmax(scores)
-        keptElec[worstElec] = False
-
-        print("Score max : {}, removing elec N°{}".format(scores[worstElec], worstElec))
-        print("Elec removed : ", np.where(keptElec==False))
-
-        print("Past Best : ", best_score, "with : ", best_selection)
-
-        if scores[worstElec] > best_score:
-            best_score = scores[worstElec]
-            best_selection = np.where(keptElec==False)
-
-        else:
-            numFailed += 1
-
-
-        if numFailed > 15:
-            scoreDecrease = True
-
-def splitTrainValidateTest(X,y):
-    train = 0.5
-    validate = 0.25
-    test = 0.25
-
-    assert(train+validate+test==1)
-
-    numExemples = np.size(X,0)
-
-    randSelection = np.random.sample(numExemples) 
-
-    trainIndex = np.where(randSelection <= train)
-    selectionIndex = np.where(np.logical_and(train < randSelection, randSelection <= train+validate))
-    testIndex = np.where(randSelection > train+validate)
-
-    sumIndex = np.size(trainIndex)+np.size(selectionIndex)+np.size(testIndex)
-    
-    print("Train : {}, Val : {}, Test : {}, Total = {}".format(np.size(trainIndex), np.size(selectionIndex),np.size(testIndex),sumIndex ))
-
-    assert(sumIndex==numExemples)
-    
-    return X[trainIndex], y[trainIndex], X[selectionIndex], y[selectionIndex], X[testIndex], y[testIndex]
-
-
-def learnElecUnbiasedFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
-    
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='balanced')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
     cRange = np.logspace(-5,2,8)
     
     parameters = {'C': cRange}
 
-    X, y, xSelec, ySelec, xTest, yTest = splitTrainValidateTest(np.concatenate((X, xTest)),\
-                                                            np.concatenate((y,yTest)))
-    
+    if np.size(xTest)!=0:
+        X = np.concatenate((X,xTest))
+        y = np.concatenate((y,yTest))
+        
     # clf = grid_search.GridSearchCV(baseClf, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
     # clf.fit(X,y)
     # bestParams = clf.best_params_
@@ -485,78 +386,55 @@ def learnElecUnbiasedFaster(X, y, xTest, yTest, penalty, scoring, transformedDat
 
     # C = bestParams['C']
     C = 1e-5
-    baseClf = svm.LinearSVC(C=C, penalty='l2', class_weight='balanced')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
 
     best_score = 0
     best_selection = []
     keptElec = np.ones(64, dtype=bool)
 
     copyX = copy(X)
-    copyXSelec = copy(xSelec)
-    copyXTest = copy(xTest)
-
+    
     scores = np.zeros(64)
     scoreDecrease = False
     numFailed = 0
     
-    while not scoreDecrease:
+    for numIter in range(63):
 
         scores[:] = 0
 
         for elec in range(64):
             if not keptElec[elec] :
+                #Already deleted
                 continue
             else:
-                erased = list(np.where(keptElec==False)[0])
-                
+
+                print("Deleting Electrode(s) ...")
+                erased = list(np.where(keptElec==False)[0])                
                 if erased != []:
                     erased.append(elec)
-                    print("X ",np.size(X,1))
-                    print("xSelec", np.size(xSelec,1))
                     X = delElec(X, erased, transformedData)
-                    xSelec = delElec(xSelec, erased, transformedData)
-                    print("X ",np.size(X,1))
-                    print("xSelec", np.size(xSelec,1))
                 else:
                     X = delElec(X,elec, transformedData)
-                    xSelec = delElec(xSelec, elec, transformedData)
 
                 print("Learning Model without elec N°",elec)
 
-                baseClf.fit(X,y)
-                yPredSelec = baseClf.predict(xSelec)
-
-                if scoring=='f1':
-                    scores[elec] = f1_score(ySelec, yPredSelec)
-                    print('ROC : ',roc_auc_score(ySelec, yPredSelec))
-
-                else:
-                    scores[elec] = roc_auc_score(ySelec, yPredSelec)
+                clf = grid_search.GridSearchCV(baseClf, {'C':[C]}, scoring=scoring, cv=10, n_jobs=jobs, verbose=1)
+                clf.fit(X,y)
+                
+                scores[elec] = clf.best_score_
 
                 print(scores[elec])
                     
                 #post process :
                 X = copy(copyX)
-                xSelec = copy(copyXSelec)
                 
         worstElec = np.argmax(scores)
         keptElec[worstElec] = False
-
+        removedElec = np.where(keptElec==False)
         print("Score max : {}, removing elec N°{}".format(scores[worstElec], worstElec))
-        print("Elec removed : ", np.where(keptElec==False))
-
-        print("Past Best : ", best_score, "with : ", best_selection)
-
-        ##True Test
-        X = delElec(X, erased, transformedData)
-        xTest = delElec(xTest, erased, transformedData)
-        baseClf.fit(X,y)
-        yPredTest = baseClf.predict(xTest)
-        print("\nTrue Test :\nF1 : {}\nROC : {}\nXXXXXXXXXXXXXXX\n".format(f1_score(yTest, yPredTest), roc_auc_score(yTest, yPredTest)))
-
-        X = copy(copyX)                
-        xTest = copy(copyXTest)
+        print("Elec removed : ", removedElec)
         
+        print("Past Best : ", best_score, "with : ", best_selection)
 
         if scores[worstElec] > best_score:
             best_score = scores[worstElec]
@@ -565,9 +443,5 @@ def learnElecUnbiasedFaster(X, y, xTest, yTest, penalty, scoring, transformedDat
         else:
             numFailed += 1
 
-
-        if numFailed > 15:
-            scoreDecrease = True
-
-    
-
+        with open("selecStep.txt",'a') as f:
+            f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))

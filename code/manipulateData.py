@@ -433,11 +433,12 @@ def prepareTransfertFiltered(freqMin, freqMax, decimation):
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
-
-
 def delTimeStep(X, timeStep, dataType):
 
-    if dataType!='stft' :
+    if 'stft' in dataType or 'Stft' in dataType :
+        raise NotImplementedYet("To be continued")
+
+    else:
         numEx = np.size(X,0)
         numCol = np.size(X,1)
         numPoints = numCol//64
@@ -454,30 +455,24 @@ def delTimeStep(X, timeStep, dataType):
                     mask[step+numPoints*i] = False
         # print(mask)
         X = X[:, mask]
-    else:
-        raise NotImplementedYet("To be continued")
+
 
     return X
 
 def delElec(X, elec, dataType):
 
-    if dataType!='stft' :
-        
-        numEx = np.size(X,0)
-        numCol = np.size(X,1)
-        numPoints = numCol//64
-        
-        mask = np.ones(numCol, dtype=bool)
+    numEx = np.size(X,0)
+    numCol = np.size(X,1)
+    numPoints = numCol//64
 
-        if isinstance(elec, int) or isinstance(elec, np.int64):
-            mask[elec*numPoints:elec*(numPoints)+numPoints] = False
-        else:
-            for step in elec:
-                 mask[step*numPoints:step*(numPoints)+numPoints] = False
+    mask = np.ones(numCol, dtype=bool)
 
-        # print(mask)
-        X = X[:, mask]
+    if isinstance(elec, int) or isinstance(elec, np.int64):
+        mask[elec*numPoints:elec*(numPoints)+numPoints] = False
     else:
-        raise NotImplementedYet("To be continued")
+        for step in elec:
+             mask[step*numPoints:step*(numPoints)+numPoints] = False
 
+    # print(mask)
+    X = X[:, mask]
     return X    
