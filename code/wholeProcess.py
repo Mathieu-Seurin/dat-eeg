@@ -55,8 +55,8 @@ if data == 'test' :
     y = np.concatenate((np.array([1 for i in range(1,30)]), -np.array([1 for i in range(1,30)]),\
                         np.array([1 for i in range(40,80)]), -np.array([1 for i in range(40,80)])))
 
-    xTest = X
-    yTest = y
+    xTest = []
+    yTest = []
 
 elif data == 'test2':
 
@@ -67,8 +67,16 @@ elif data == 'test2':
     y = np.array([1 for j in range(50)])
     y = np.concatenate((y,-y))
 
-    xTest = X
-    yTest = y
+    xTest = []
+    yTest = []
+
+elif data == 'random':
+    X = np.random.random((15300,2000))
+    y = np.load(PATH_TO_DATA+'AfullY.npy')
+
+    xTest = []
+    yTest = []
+    dataType = 'random'
     
 elif data =='AR':
 
@@ -106,7 +114,7 @@ elif data=='AF8':
 
 elif data=='AFS':
 
-    X,y,xTest,yTest = prepareFilteredStft('A',0.5,10,8,0.2)
+    X,y,xTest,yTest = prepareFilteredStft('A',0.5,10,8,0.1)
     dataType = 'filtered4Stft0.1'
 
 elif data=='AF8S':
@@ -140,7 +148,7 @@ else :
 
 if params=='lin':
     
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType,jobs=4)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=4)
 
 elif params=='nonLin':
     

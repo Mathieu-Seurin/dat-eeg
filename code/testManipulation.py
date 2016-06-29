@@ -42,3 +42,12 @@ elif test == 'stftMatFilter':
     
     print t1v
     print t1v.size
+
+elif test == 'patch':
+    X = np.load(PATH_TO_DATA+'AfullFiltered4StftMatrix0.2X.npy')
+    patcher = Patcher(X,'mean',100)
+
+    a = time.time()
+    X = patcher.patchFeatures()
+    print(X.shape)
+    print(time.time()-a)

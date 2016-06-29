@@ -5,11 +5,12 @@
 import pickle
 import numpy as np
 import scipy.io as sio
-
+from scipy.sparse import lil_matrix
 from signalManipulation import *
 from sklearn.preprocessing import StandardScaler
 
 import os.path
+import time
 
 class NotImplementedYet(Exception): pass
 
@@ -476,3 +477,65 @@ def delElec(X, elec, dataType):
     # print(mask)
     X = X[:, mask]
     return X    
+
+
+################### Patches Manipulation ##############
+class Patcher(object):
+    def __init__(self,X,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
+
+        self.X = X
+        dictOpe = {'mean':np.mean, 'sum':np.sum}
+        self.operation = dictOpe[operationStr]
+        self.cardPatch = cardPatch
+        self.elecWidth = elecWidth
+        self.freqWidth = freqWidth
+        self.winWidth = winWidth
+        
+    def generateXPatched(self):
+        """
+        Idée : Tenir compte de la topologie des électrodes pour la sélection
+
+        Input
+        ======
+        X is a matrix of exemple, all of them represented in time-frequencies
+        X must be a 4-D matrix (#Exemple x #Electrodes x #Frequencies x #Windows)
+
+        xxxWidth : size of the patch on the xxx dimension : (2*xxxWidth)+1
+        Ex : elecWidth = 2, 2*2+1=5, 5 electrode will be taken in the patch
+
+        Yield (Didn't use 'return' because of memory problem)
+        =====
+        Yield X patched, exemple by exemple, in a list format
+        Dimension : cardPatch x 2*elecWidth+1 x 2*freqWidth+1 x 2*winWidth+1
+        """
+
+        assert np.ndim(X) == 4
+        cardExemple, cardElec, cardFreq, cardWin = X.shape
+        assert 2*self.elecWidth<cardElec
+        assert 2*self.freqWidth<cardFreq
+        assert 2*self.winWidth<cardWin
+
+
+        randElec = np.random.randint(low=self.elecWidth, high=cardElec-self.elecWidth, size=self.cardPatch)
+        randFreq = np.random.randint(low=self.freqWidth, high=cardFreq-self.freqWidth, size=self.cardPatch)
+        randWin = np.random.randint(low=self.winWidth, high=cardWin-self.winWidth, size=self.cardPatch)
+
+        slices = [(slice(randElec[i]-self.elecWidth,randElec[i]+self.elecWidth+1),\
+              slice(randFreq[i]-self.freqWidth,randFreq[i]+self.freqWidth+1),\
+              slice(randWin[i]-self.winWidth,randWin[i]+self.winWidth+1)) for i in range(self.cardPatch)]
+
+        for ex in xrange(cardExemple):
+            yield [X[ex][slices[i]] for i in range(self.cardPatch)]
+
+        # Memory overload :
+        # return [[X[ex][slices[i]] for i in range(cardPatch)] for ex in xrange(cardExemple)]
+
+
+    def patchFeatures(self):
+        cardExemple = np.size(X,0)
+        newX = np.empty( (cardExemple, self.cardPatch), np.float64)
+
+        for numEx, ex in enumerate(self.generateXPatched()):
+            newX[numEx] = [self.operation(patch) for patch in ex]
+        
+        return newX
