@@ -8,10 +8,13 @@ from manipulateData import *
 
 #Module
 import pickle
+
 from sklearn import svm, grid_search
 from sklearn.linear_model import ElasticNetCV, ElasticNet
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, roc_auc_score
 from sklearn.preprocessing import scale
+from sklearn.lda import LDA
+from sklearn.qda import QDA
 
 from copy import copy
 
@@ -19,7 +22,8 @@ import pylab as pl
 
 RESULTS_PATH = 'Results/'
 
-
+#======================== TOOLS ========================
+#======================================================
 def writeResults(results, best_params, best_score, modelType, penalty, scoreType,\
                  transformedData, scores=None):
     """
@@ -118,6 +122,63 @@ def testModel(best,X,y,xTest,yTest,penalty):
 
     return scores
 
+
+def saveNonZerosCoef(clf, reg, dataType):
+
+    nonZerosParams = np.where(clf.coef_ != 0)[0]
+    print("Nombre de coef : ", len(clf.coef_[0]))
+    print("Nombre de coef annulés : ", len(nonZerosParams))
+
+    with open('nonZerosParams{}{}'.format(dataType.title(),reg), 'w') as f:
+        f.write(str(list(nonZerosParams)))
+
+    analyzeCoef(dataType, reg)
+
+
+def analyzeCoef(dataType, reg):
+
+    path = "Images/Screenshots/"
+    
+    with open('nonZerosParams{}{}'.format(dataType.title(),reg), 'r') as f:
+        wholeFile = f.read()
+        print("Here")
+        print(wholeFile[0], wholeFile[-1])
+        wholeFile = wholeFile[1:-1]
+        numGen = map(int,wholeFile.split(','))
+
+        #Step
+        step = np.zeros(40)
+        steps = np.array([i+1 for i in range(40)])
+        for num in numGen:
+            step[num%40] += 1
+
+        numGen = map(int,wholeFile.split(','))
+
+        #Elec
+        elec = np.zeros(64)
+        elecs = np.array([i+1 for i in range(64)])
+
+        for num in numGen:
+            elec[num//40] += 1
+
+        ax = plt.subplot()
+
+        steps = np.array(steps)/60
+        
+        ax.bar(steps, step, width=1/60)
+        ax.set_title("Nombre de coefficients non annulés par pas de temps")
+        plt.savefig(path+'nonZerosStep{}{}.png'.format(dataType.title(),reg))
+
+        plt.show()
+        
+        ax = plt.subplot()
+        ax.bar(elecs, elec, width=1)
+        ax.set_title("Nombre de coefficients non annulés par electrode")
+        plt.savefig(path+'nonZerosElec{}{}.png'.format(dataType.title(),reg))
+        plt.show()
+
+#=============== Learner =============================
+#====================================================
 def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
     """
     Grid Search over a set of parameters for linear model
@@ -239,60 +300,6 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
     with open('nonZerosParamsRawElasticNet', 'w') as f:
         f.write(str(list(nonZerosParams)))
 
-def saveNonZerosCoef(clf, reg, dataType):
-
-    nonZerosParams = np.where(clf.coef_ != 0)[0]
-    print("Nombre de coef : ", len(clf.coef_[0]))
-    print("Nombre de coef annulés : ", len(nonZerosParams))
-
-    with open('nonZerosParams{}{}'.format(dataType.title(),reg), 'w') as f:
-        f.write(str(list(nonZerosParams)))
-
-    analyzeCoef(dataType, reg)
-
-
-def analyzeCoef(dataType, reg):
-
-    path = "Images/Screenshots/"
-    
-    with open('nonZerosParams{}{}'.format(dataType.title(),reg), 'r') as f:
-        wholeFile = f.read()
-        print("Here")
-        print(wholeFile[0], wholeFile[-1])
-        wholeFile = wholeFile[1:-1]
-        numGen = map(int,wholeFile.split(','))
-
-        #Step
-        step = np.zeros(40)
-        steps = np.array([i+1 for i in range(40)])
-        for num in numGen:
-            step[num%40] += 1
-
-        numGen = map(int,wholeFile.split(','))
-
-        #Elec
-        elec = np.zeros(64)
-        elecs = np.array([i+1 for i in range(64)])
-
-        for num in numGen:
-            elec[num//40] += 1
-
-        ax = plt.subplot()
-
-        steps = np.array(steps)/60
-        
-        ax.bar(steps, step, width=1/60)
-        ax.set_title("Nombre de coefficients non annulés par pas de temps")
-        plt.savefig(path+'nonZerosStep{}{}.png'.format(dataType.title(),reg))
-
-        plt.show()
-        
-        ax = plt.subplot()
-        ax.bar(elecs, elec, width=1)
-        ax.set_title("Nombre de coefficients non annulés par electrode")
-        plt.savefig(path+'nonZerosElec{}{}.png'.format(dataType.title(),reg))
-        plt.show()
-
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
     baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
@@ -365,8 +372,6 @@ def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
             
         if numFailed > 3:
             scoreDecrease = True
-
-
 
 def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
     
@@ -445,3 +450,11 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
 
         with open("selecStep.txt",'a') as f:
             f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))
+
+def learnLDA(X,y,xTest,yTest,transformedData):
+
+    n_components = 1000
+    clf = LDA('svd',priors=[0.9,0.1])
+
+    clf.fit(X,y)
+    print(clf.store)

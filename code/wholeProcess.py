@@ -71,7 +71,7 @@ elif data == 'test2':
     yTest = []
 
 elif data == 'random':
-    X = np.random.random((15300,2000))
+    X = np.random.random((15300,1000))
     y = np.load(PATH_TO_DATA+'AfullY.npy')
 
     xTest = []
@@ -137,6 +137,27 @@ elif data=='trans':
     X,y,xTest,yTest = prepareTransfertFiltered(0.5,30,4)
     dataType = 'filtered4'
 
+
+elif data == 'patch':
+    cardPatch = 10000
+
+    if os.path.exists('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch)):
+        print("Loading Model...")
+        X = np.load('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch))
+    else:
+        X = np.load(PATH_TO_DATA+'AfullFiltered4StftMatrix0.2X.npy')
+        patcher = Patcher(X,'mean',cardPatch)
+
+        a = time.time()
+        X = patcher.patchFeatures()
+        print(X.shape)
+        print(time.time()-a)
+
+    y = np.load(PATH_TO_DATA+'AfullY.npy')
+    xTest = []
+    yTest = []
+    dataType = 'patchedMean{}'.format(cardPatch)
+    
 else :
     print(USAGE)
     raise ArgumentError("Wrong Type of Data")
@@ -148,7 +169,7 @@ else :
 
 if params=='lin':
     
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=4)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType,jobs=4)
 
 elif params=='nonLin':
     
@@ -157,6 +178,10 @@ elif params=='nonLin':
 elif params == 'elastic' :
 
     learnElasticNet(X,y,xTest,yTest, 'roc_auc', transformedData=dataType, jobs=2)
+    
+elif params=='LDA':
+
+    learnLDA(X,y,xTest,yTest,transformedData=dataType)
     
 elif params=='single':
     

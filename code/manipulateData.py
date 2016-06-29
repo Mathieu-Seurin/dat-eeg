@@ -485,7 +485,8 @@ class Patcher(object):
 
         self.X = X
         dictOpe = {'mean':np.mean, 'sum':np.sum}
-        self.operation = dictOpe[operationStr]
+        self.operationStr = operationStr
+        self.operation = dictOpe[self.operationStr]
         self.cardPatch = cardPatch
         self.elecWidth = elecWidth
         self.freqWidth = freqWidth
@@ -509,8 +510,8 @@ class Patcher(object):
         Dimension : cardPatch x 2*elecWidth+1 x 2*freqWidth+1 x 2*winWidth+1
         """
 
-        assert np.ndim(X) == 4
-        cardExemple, cardElec, cardFreq, cardWin = X.shape
+        assert np.ndim(self.X) == 4
+        cardExemple, cardElec, cardFreq, cardWin = self.X.shape
         assert 2*self.elecWidth<cardElec
         assert 2*self.freqWidth<cardFreq
         assert 2*self.winWidth<cardWin
@@ -525,17 +526,22 @@ class Patcher(object):
               slice(randWin[i]-self.winWidth,randWin[i]+self.winWidth+1)) for i in range(self.cardPatch)]
 
         for ex in xrange(cardExemple):
-            yield [X[ex][slices[i]] for i in range(self.cardPatch)]
+            yield [self.X[ex][slices[i]] for i in range(self.cardPatch)]
 
         # Memory overload :
-        # return [[X[ex][slices[i]] for i in range(cardPatch)] for ex in xrange(cardExemple)]
+        # return [[self.X[ex][slices[i]] for i in range(cardPatch)] for ex in xrange(cardExemple)]
 
 
-    def patchFeatures(self):
-        cardExemple = np.size(X,0)
+    def patchFeatures(self,save=True):
+        cardExemple = np.size(self.X,0)
         newX = np.empty( (cardExemple, self.cardPatch), np.float64)
 
         for numEx, ex in enumerate(self.generateXPatched()):
             newX[numEx] = [self.operation(patch) for patch in ex]
-        
-        return newX
+
+        self.X=newX
+        self.saveData()
+        return self.X
+
+    def saveData(self):
+        np.save("{}patched{}{}".format(PATH_TO_DATA,self.operationStr.title(), self.cardPatch),self.X)
