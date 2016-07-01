@@ -71,7 +71,7 @@ elif data == 'test2':
     yTest = []
 
 elif data == 'random':
-    X = np.random.random((15300,1000))
+    X = np.random.random((15300,10000))
     y = np.load(PATH_TO_DATA+'AfullY.npy')
 
     xTest = []
@@ -157,6 +157,17 @@ elif data == 'patch':
     xTest = []
     yTest = []
     dataType = 'patchedMean{}'.format(cardPatch)
+
+elif data == 'LDA':
+
+    cardPatch = 1000
+    X = np.load('{}patchedLDA{}.npy'.format(PATH_TO_DATA,cardPatch))
+    y = np.load(PATH_TO_DATA+'AfullY.npy')
+    y = np.load(PATH_TO_DATA+'AfullY.npy')
+    xTest = []
+    yTest = []
+    dataType = 'patchedLDA{}'.format(cardPatch)
+    
     
 else :
     print(USAGE)
@@ -169,7 +180,8 @@ else :
 
 if params=='lin':
     
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType,jobs=4)
+    print(X.shape)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', 'accuracy',transformedData=dataType,jobs=4)
 
 elif params=='nonLin':
     
@@ -182,6 +194,7 @@ elif params == 'elastic' :
 elif params=='LDA':
 
     learnLDA(X,y,xTest,yTest,transformedData=dataType)
+    
     
 elif params=='single':
     

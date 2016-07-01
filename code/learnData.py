@@ -451,10 +451,11 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
         with open("selecStep.txt",'a') as f:
             f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))
 
-def learnLDA(X,y,xTest,yTest,transformedData):
+def learnLDA(X,y,xTest,yTest,transformedData, n_components=1000):
 
-    n_components = 1000
-    clf = LDA('svd',priors=[0.9,0.1])
+    clf = LDA('svd', n_components=n_components, priors=[0.1,0.9])
+    print(np.where(y==0))
+    X = clf.fit_transform(X,y)
+    np.save("{}patchedLDA{}".format(PATH_TO_DATA,n_components), X)
 
-    clf.fit(X,y)
-    print(clf.store)
+    print(clf.score())
