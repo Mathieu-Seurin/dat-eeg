@@ -6,46 +6,47 @@ from manipulateData import *
 import os
 import sys
 
+import argparse
+
 class ArgumentError(Exception): pass
     
-USAGE = """USAGE :
-    python3 wholeProcess.py dataType modelType copyResults
+parser = argparse.ArgumentParser()
 
-    dataType can be : test, AR (subject A, raw) , AS (A, STFT), AF, AFS, ABF 
-    modelType can be : lin, nonLin, elastic, single, allS (compute linearModel for all scores)
 
-    if argument copyResults is specified : copy all resulst to your $HOME ~
-    else does nothing
-    The last argument can be ABSOLUTELY anything.
+#Needed Parameters
+parser.add_argument("data", help="Type of Data you want to learn/transform")
+parser.add_argument("model", help="Type of Model you want to learn/transform")
 
-    Exemple :
-    
-    python3 wholeProcess.py test nonLin 42
-    >> 'test data, nonLin Model, copy Results at the end'
+#Optionnal Argument
+parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','AB','BA'], default='A')
 
-    """
+parser.add_argument("-j","--jobs",help="Number of jobs used to learn the data", type=int, default=1)
 
-if len(sys.argv) < 2:
-    print(USAGE)
-    raise ArgumentError('Missing 2 arguments')
-    
-elif len(sys.argv) < 3:
-    print(USAGE)
-    raise ArgumentError('Missing 1 argument')
+parser.add_argument("--cardRandom",help="Number of features for random data", type=int, default=2)
 
-    
-else:
-    data = sys.argv[1]
-    params = sys.argv[2]
-    copyResults = len(sys.argv) > 3
+parser.add_argument("--FreqMin", help="Frequencies' filter's lower bound", type=float)
+parser.add_argument("--FreqMax", help="Frequencies' filter's upper bound", type=float)
+parser.add_argument("--decimation", help="Decimation Factor (Downsampling)", type=int)
 
-    toPrint = "{} data, {} Model, ".format(data, params)
-    if not copyResults: toPrint += "don't "
-    toPrint += "copy Results at the end"
+parser.add_argument("--sizeWindow", help="Size of STFT window", type=float, default=0.2)
 
-    print(toPrint)
+parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, accuracy)", choices=['f1', 'roc_auc', 'accuracy'], default='f1')
+
+parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no Test)", type=float, default=0)
+
+parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
+parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int)
+
+parser.add_argument("-c", "--copyResults",action="store_true") 
+
+
+args = parser.parse_args()
+print(args)
+
+data = parser.data
 
 #=========================  DATA  ==================================
+#===================================================================
 if data == 'test' :
 
     dataType='raw'
@@ -77,15 +78,15 @@ elif data == 'random':
     xTest = []
     yTest = []
     dataType = 'random'
-    
-elif data =='AR':
 
-    X,y,xTest,yTest = prepareRaw('A')
+elif data == 'raw':
+    
+    X,y,xTest,yTest = prepareRaw(subject=args.subject,splitTrainTest=args.ratioTest)
     dataType='raw'
 
-elif data=='AS':
+elif data == 'stft':
 
-    X,y,xTest,yTest = prepareStft('A', 0.2)
+    X,y,xTest,yTest = prepareStft(subject=args.subject,args.sizeWindow)
     dataType='Stft'+str(frameSize)
 
 elif data=='ABR':
@@ -159,9 +160,9 @@ elif data == 'patch':
     dataType = 'patchedMean{}'.format(cardPatch)
 
 elif data == 'LDA':
-    cardPatch = 10000
-    outLDA = 100
-    X = np.load('{}patchedLDAfrom{}to{}.npy'.format(PATH_TO_DATA,cardPatch, outLDA))
+
+    cardPatch = 2
+    X = np.load('{}patchedLDA{}.npy'.format(PATH_TO_DATA,cardPatch))
     y = np.load(PATH_TO_DATA+'AfullY.npy')
     xTest = []
     yTest = []
@@ -177,24 +178,24 @@ else :
 #====================================================================
 #====================================================================
 
-if params=='lin':
+if model=='lin':
     
     print(X.shape)
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=4)
 
-elif params=='nonLin':
+elif model=='nonLin':
     
     learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType,jobs=4)
 
-elif params == 'elastic' :
+elif model == 'elastic' :
 
     learnElasticNet(X,y,xTest,yTest, 'roc_auc', transformedData=dataType, jobs=2)
     
-elif params=='LDA':
+elif model=='LDA':
 
     learnLDA(X,y,xTest,yTest,transformedData=dataType,n_components=100)
         
-elif params=='single':
+elif model=='single':
     
     clf = svm.LinearSVC(C=1e-5, class_weight='balanced')
     clf.fit(X,y)
@@ -203,7 +204,7 @@ elif params=='single':
 
     scores = getScores(y, yPredTrain, yTest, yPredTest)
 
-elif params == 'allS':
+elif model == 'allS':
 
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'accuracy',transformedData=dataType)
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'precision',transformedData=dataType)
@@ -211,10 +212,10 @@ elif params == 'allS':
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType)
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType)
 
-elif params == 'step':
+elif model == 'step':
     learnStep(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=3)
 
-elif params == 'elec':
+elif model == 'elec':
     learnElecFaster(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=4)
     
 else :
@@ -223,3 +224,4 @@ else :
 
 if copyResults:
     os.system("cp Results/*.txt ~")
+

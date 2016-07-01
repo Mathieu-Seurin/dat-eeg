@@ -351,7 +351,7 @@ def loadSplitted():
 
     return X,y,xTest,yTest
 
-def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest=0):
+def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest):
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject),"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
@@ -359,7 +359,7 @@ def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest=0):
     return splitXY("{}fullFiltered{}_{}_{}RawX.npy".format(subject,freqMin,freqMax,decimation),\
             "{}fullY.npy".format(subject), 'Filtered',splitTrainTest)
 
-def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest=0):
+def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest):
 
     reformatRawData("Subject_A_Train_reshaped.mat","AfullRawX")
     filterRawData("AfullRawX.npy", freqMin, freqMax, decimation)
@@ -372,13 +372,16 @@ def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest=0):
 
     return splitXY("ABfullFilteredX.npy","ABfullY.npy", 'Filtered',splitTrainTest)
     
-def prepareRaw(subject,splitTrainTest=0):
+def prepareRaw(subject,splitTrainTest):
+
+    if subject in ('AB','BA'):
+        return prepareRawAB(splitTrainTest)
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     return splitXY("{}fullRawX.npy".format(subject),"{}fullY.npy".format(subject) ,\
                    'Raw',splitTrainTest)
 
-def prepareRawAB(splitTrainTest=0):
+def prepareRawAB(splitTrainTest):
         
     reformatRawData("Subject_A_Train_reshaped.mat","AfullRawX")
     reformatRawData("Subject_B_Train_reshaped.mat","BfullRawX")
@@ -387,7 +390,7 @@ def prepareRawAB(splitTrainTest=0):
     return splitXY("ABfullRawX.npy","ABfullY.npy", 'Raw',splitTrainTest)
 
                                                      
-def prepareStft(subject, frameSize,splitTrainTest=0):
+def prepareStft(subject, frameSize,splitTrainTest):
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     reformatStftData("{}fullRawX.npy".format(subject), 'Raw', 240, frameSize=frameSize) 
@@ -397,7 +400,7 @@ def prepareStft(subject, frameSize,splitTrainTest=0):
 
 
 
-def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTrainTest=0):
+def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTrainTest):
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
