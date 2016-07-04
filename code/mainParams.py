@@ -11,11 +11,15 @@ import argparse
 class ArgumentError(Exception): pass
     
 parser = argparse.ArgumentParser()
+allDataType = ['test','random','r','s','f','fs','patch']
+allModelType = ['lin','nonLin']
 
+#=========================  PARAMETERS  ============================
+#===================================================================
 
 #Needed Parameters
-parser.add_argument("data", help="Type of Data you want to learn/transform")
-parser.add_argument("model", help="Type of Model you want to learn/transform")
+parser.add_argument("data", help="Type of Data you want to learn/transform",choices=allDataType)
+parser.add_argument("model", help="Type of Model you want to learn/transform",choices=allModelType)
 
 #Optionnal Argument
 parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','AB','BA'], default='A')
@@ -24,42 +28,31 @@ parser.add_argument("-j","--jobs",help="Number of jobs used to learn the data", 
 
 parser.add_argument("--cardRandom",help="Number of features for random data", type=int, default=2)
 
-parser.add_argument("--FreqMin", help="Frequencies' filter's lower bound", type=float)
-parser.add_argument("--FreqMax", help="Frequencies' filter's upper bound", type=float)
-parser.add_argument("--decimation", help="Decimation Factor (Downsampling)", type=int)
+parser.add_argument("-i","--freqMin", help="Frequency filter's lower bound", type=float, default=0.1)
+parser.add_argument("-a","--freqMax", help="Frequency filter's upper bound", type=float, default=60)
+parser.add_argument("-d","--decimation", help="Decimation Factor (Downsampling)", type=int, default=4)
 
-parser.add_argument("--sizeWindow", help="Size of STFT window", type=float, default=0.2)
+parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.2)
 
 parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, accuracy)", choices=['f1', 'roc_auc', 'accuracy'], default='f1')
 
 parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no Test)", type=float, default=0)
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
-parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int)
+parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int, default=2)
 
 parser.add_argument("-c", "--copyResults",action="store_true") 
+parser.add_argument("-t", "--transfer", help="Transfer Learning if indicated", action="store_true") 
 
 
 args = parser.parse_args()
-print(args)
+print(args,'\n')
 
-data = parser.data
-
+data = args.data.lower()
+model = args.model.lower()
 #=========================  DATA  ==================================
 #===================================================================
-if data == 'test' :
-
-    dataType='raw'
-
-    party = np.array([i for i in range(30)])
-    X = np.concatenate((np.array([[-i,-i] for i in range(1,30)]), -np.array([[-i,-i] for i in range(1,30)]), np.array([[-i,-i] for i in range(40,80)]), -np.array([[-i,-i] for i in range(40,80)])))
-    y = np.concatenate((np.array([1 for i in range(1,30)]), -np.array([1 for i in range(1,30)]),\
-                        np.array([1 for i in range(40,80)]), -np.array([1 for i in range(40,80)])))
-
-    xTest = []
-    yTest = []
-
-elif data == 'test2':
+if data == 'test':
 
     dataType = 'raw'
     X = np.array([[i for i in range(64*4)] for j in range(50)])
@@ -72,76 +65,48 @@ elif data == 'test2':
     yTest = []
 
 elif data == 'random':
-    X = np.random.random((15300,10000))
+    X = np.random.random((15300,args.cardRandom))
     y = np.load(PATH_TO_DATA+'AfullY.npy')
 
     xTest = []
     yTest = []
     dataType = 'random'
 
-elif data == 'raw':
+elif data == 'r':
     
-    X,y,xTest,yTest = prepareRaw(subject=args.subject,splitTrainTest=args.ratioTest)
+    X,y,xTest,yTest = prepareRaw(args.subject,args.ratioTest)
     dataType='raw'
 
-elif data == 'stft':
+elif data == 's':
 
-    X,y,xTest,yTest = prepareStft(subject=args.subject,args.sizeWindow)
-    dataType='Stft'+str(frameSize)
+    X,y,xTest,yTest = prepareStft(args.subject,args.sizeWindow,args.ratioTest)
+    dataType="stft{}".format(args.sizeWindow)
 
-elif data=='ABR':
+elif data=='f':
+
+    subject=args.subject
+    freqMin=args.freqMin
+    freqMax = args.freqMax
+    decimation = args.decimation
     
-    X,y,xTest,yTest = prepareRawAB()    
-    dataType='raw'
+    X,y,xTest,yTest = prepareFiltered(subject,freqMin,freqMax,decimation,args.ratioTest)
+    dataType = '{}filtered{}{}{}'.format(subject,freqMin,freqMax,decimation)
+
+elif data == 'fs':
+
+    subject=args.subject
+    freqMin=args.freqMin
+    freqMax = args.freqMax
+    decimation = args.decimation
+    sizeWindow = args.sizeWindow
     
-elif data=='AF':
-
-    X,y,xTest,yTest = prepareFiltered('A',0.5,30,4)
-    dataType = 'filtered4'
-
-elif data=='BF':
-    X,y,xTest,yTest = prepareFiltered('B',0.5,30,4)
-    dataType = 'filtered4'
-
-elif data=='ABF':
-
-    X,y,xTest,yTest = prepareFilteredAB(0.5,30,4)
-    dataType = 'filtered4'
-
-elif data=='AF8':
-
-    X,y,xTest,yTest = prepareFiltered('A',0.5,15,8)
-    dataType = 'filtered8'
-
-elif data=='AFS':
-
-    X,y,xTest,yTest = prepareFilteredStft('A',0.5,10,8,0.1)
-    dataType = 'filtered4Stft0.1'
-
-elif data=='AF8S':
-
-    X,y,xTest,yTest = prepareFilteredStft('A',0.5,30,8, 0.1)
-    dataType = 'filtered8Stft0.1'
-
-elif data=='BFS':
-
-    X,y,xTest,yTest = prepareFilteredStft('B',0.5,30,4, 0.1)
-    dataType = 'filtered4Stft0.1'
-
-elif data=='BF8S':
-
-    X,y,xTest,yTest = prepareFilteredStft('B',0.5,30,8, 0.1)
-    dataType = 'filtered8Stft0.1'
-
-elif data=='trans':
-
-    X,y,xTest,yTest = prepareTransfertFiltered(0.5,30,4)
-    dataType = 'filtered4'
-
+    X,y,xTest,yTest = prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, args.ratioTest)
+    datatype = '{}filtered{}{}{}Stft{}'.format(subject,freqMin,freqMax,decimation,sizeWindow)
 
 elif data == 'patch':
-    cardPatch = 10000
 
+    cardPatch = args.cardPatch
+    
     if os.path.exists('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch)):
         print("Loading Model...")
         X = np.load('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch))
@@ -173,23 +138,34 @@ else :
     print(USAGE)
     raise ArgumentError("Wrong Type of Data")
 
+print(dataType)
+
+if args.transfer:
+
+    X,y,xTest,yTest = prepareTransfertFiltered(0.5,30,4)
+    dataType = 'filtered4'
+
+    print("+ Transfer")
+
 #====================================================================
 #=========================  MODEL  ==================================
 #====================================================================
 #====================================================================
+cardJobs=args.jobs
+
 
 if model=='lin':
     
     print(X.shape)
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=4)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=cardJobs)
 
 elif model=='nonLin':
     
-    learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType,jobs=4)
+    learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType,jobs=cardJobs)
 
 elif model == 'elastic' :
 
-    learnElasticNet(X,y,xTest,yTest, 'roc_auc', transformedData=dataType, jobs=2)
+    learnElasticNet(X,y,xTest,yTest, 'roc_auc', transformedData=dataType, jobs=cardJobs)
     
 elif model=='LDA':
 

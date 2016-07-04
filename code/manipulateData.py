@@ -296,7 +296,6 @@ def reformatWaveletData(filenameI):
 # return X  y  xTest  yTest
 
 #==============================================================================
-
 def saveSplitted(trainX, trainY, testX, testY):
 
     np.save(PATH_TO_DATA+'trainX', trainX)
@@ -304,7 +303,17 @@ def saveSplitted(trainX, trainY, testX, testY):
     np.save(PATH_TO_DATA+'testX', testX)
     np.save(PATH_TO_DATA+'testY', testY)
 
-def splitXY(fileX, fileY, dataTransformation,split=0.70):
+
+def loadSplitted():
+        
+    X = np.load('{}{}'.format(PATH_TO_DATA, 'trainX.npy'))
+    y = np.load('{}{}'.format(PATH_TO_DATA, 'trainY.npy'))
+    xTest = np.load('{}{}'.format(PATH_TO_DATA, 'testX.npy'))
+    yTest = np.load('{}{}'.format(PATH_TO_DATA, 'testY.npy'))
+
+    return X,y,xTest,yTest
+
+def splitXY(fileX, fileY,split=0.70):
 
     X = np.load(PATH_TO_DATA+fileX)
     y = np.load(PATH_TO_DATA+fileY)
@@ -342,22 +351,16 @@ def concatAB(fileXA, fileYA, fileXB, fileYB, dataType):
     np.save(PATH_TO_DATA+"ABfull{}X".format(dataType.title()), fullX)
     np.save(PATH_TO_DATA+"ABfullY", fullY)
     
-def loadSplitted():
-        
-    X = np.load('{}{}'.format(PATH_TO_DATA, 'trainX.npy'))
-    y = np.load('{}{}'.format(PATH_TO_DATA, 'trainY.npy'))
-    xTest = np.load('{}{}'.format(PATH_TO_DATA, 'testX.npy'))
-    yTest = np.load('{}{}'.format(PATH_TO_DATA, 'testY.npy'))
-
-    return X,y,xTest,yTest
-
 def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest):
 
+    if subject in ('AB','BA'):
+        return prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest)
+    
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject),"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     return splitXY("{}fullFiltered{}_{}_{}RawX.npy".format(subject,freqMin,freqMax,decimation),\
-            "{}fullY.npy".format(subject), 'Filtered',splitTrainTest)
+            "{}fullY.npy".format(subject),splitTrainTest)
 
 def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest):
 
@@ -370,7 +373,7 @@ def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest):
     concatAB("AfullFiltered{}_{}_{}RawX.npy".format(freqMin,freqMax,decimation),"AfullY.npy",\
              "BfullFiltered{}_{}_{}RawX.npy".format(freqMin,freqMax,decimation),"BfullY.npy",'Filtered')
 
-    return splitXY("ABfullFilteredX.npy","ABfullY.npy", 'Filtered',splitTrainTest)
+    return splitXY("ABfullFilteredX.npy","ABfullY.npy",splitTrainTest)
     
 def prepareRaw(subject,splitTrainTest):
 
@@ -378,8 +381,7 @@ def prepareRaw(subject,splitTrainTest):
         return prepareRawAB(splitTrainTest)
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
-    return splitXY("{}fullRawX.npy".format(subject),"{}fullY.npy".format(subject) ,\
-                   'Raw',splitTrainTest)
+    return splitXY("{}fullRawX.npy".format(subject),"{}fullY.npy".format(subject),splitTrainTest)
 
 def prepareRawAB(splitTrainTest):
         
@@ -387,20 +389,27 @@ def prepareRawAB(splitTrainTest):
     reformatRawData("Subject_B_Train_reshaped.mat","BfullRawX")
     concatAB("AfullRawX.npy","AfullY.npy", "BfullRawX.npy","BfullY.npy")
 
-    return splitXY("ABfullRawX.npy","ABfullY.npy", 'Raw',splitTrainTest)
+    return splitXY("ABfullRawX.npy","ABfullY.npy",splitTrainTest)
 
                                                      
 def prepareStft(subject, frameSize,splitTrainTest):
 
+    if subject in ('AB','BA'):
+        prepareStftAB(frameSize,splitTrainTest)
+
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     reformatStftData("{}fullRawX.npy".format(subject), 'Raw', 240, frameSize=frameSize) 
 
-    return splitXY("{}fullRawStft{}X.npy".format(subject, frameSize),"{}fullY.npy".format(subject),\
-                   'Stft'+str(frameSize), splitTrainTest)
+    return splitXY("{}fullRawStft{}X.npy".format(subject, frameSize),\
+                   "{}fullY.npy".format(subject), splitTrainTest)
 
-
+def prepareStftAB(frameSize,splitTrainTest):
+    raise NotImplemented("Not Yet, maybe will never be useful")
 
 def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTrainTest):
+
+    if subject in ('AB', 'BA'):
+        prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize,splitTrainTest)
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
@@ -412,28 +421,28 @@ def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTr
     return splitXY("{}fullFiltered{}Stft{}X.npy".format(subject, decimation, frameSize),\
                    "{}fullY.npy".format(subject), "Filtered{}".format(decimation), splitTrainTest)
 
-    
+def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest):
+    raise NotImplemented("Not Yet, maybe will never be useful")    
 
-def prepareTransfertFiltered(freqMin, freqMax, decimation):
 
-    reformatRawData("Subject_A_Train_reshaped.mat","AfullRawX")
-    filterRawData("AfullRawX.npy", freqMin, freqMax, decimation)
+def preparePatch(subject, freqMin, freqMax, decimation,frameSize, splitTrainTest,outputFormat):
 
-    X = np.load('{}AfullFiltered{}_{}_{}RawX.npy'.format(PATH_TO_DATA,freqMin, freqMax, decimation))
-    y = np.load('{}{}'.format(PATH_TO_DATA, 'AfullY.npy'))
+    if subject in ('AB','BA'):
+        preparePatchAB(subject)
 
-    reformatRawData("Subject_B_Train_reshaped.mat","BfullRawX")
-    filterRawData("BfullRawX.npy", freqMin, freqMax, decimation)
+    dataType = 'filtered{}_{}_{}stft'
 
-    xTest = np.load('{}BfullFiltered{}_{}_{}RawX.npy'.format(PATH_TO_DATA,freqMin, freqMax, decimation))
-    yTest = np.load('{}{}'.format(PATH_TO_DATA, 'BfullY.npy'))
+    reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject))
+    filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
-    scaler = StandardScaler()
-    
-    X = scaler.fit_transform(X)
-    xTest = scaler.transform(xTest)
-    
-    return X, y, xTest, yTest
+    reformatStftDataMatrix(
+        "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
+        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat=outputFormat)
+
+    return splitXY("{}fullFiltered{}StftMatrix{}X.npy".format(subject,decimation,frameSize),"{}fullY.npy".format(subject),splitTrainTest)
+
+def preparePatchAB():
+    raise NotImplemented("Time needs time little hobbit")
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
