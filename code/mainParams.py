@@ -11,7 +11,7 @@ import argparse
 class ArgumentError(Exception): pass
     
 parser = argparse.ArgumentParser()
-allDataType = ['test','random','r','s','f','fs','patch']
+allDataType = ['test','random','r','s','f','fs','p']
 allModelType = ['lin','nonLin']
 
 #=========================  PARAMETERS  ============================
@@ -19,7 +19,7 @@ allModelType = ['lin','nonLin']
 
 #Needed Parameters
 parser.add_argument("data", help="Type of Data you want to learn/transform",choices=allDataType)
-parser.add_argument("model", help="Type of Model you want to learn/transform",choices=allModelType)
+parser.add_argument("model", help="Type of Model you want to use",choices=allModelType)
 
 #Optionnal Argument
 parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','AB','BA'], default='A')
@@ -40,6 +40,8 @@ parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no 
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
 parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int, default=2)
+
+parser.add_argument("--outputFormat", help="type of output for stft matrix file (default : npy)", default="npy", choices=['npy','mat'])
 
 parser.add_argument("-c", "--copyResults",action="store_true") 
 parser.add_argument("-t", "--transfer", help="Transfer Learning if indicated", action="store_true") 
@@ -103,26 +105,20 @@ elif data == 'fs':
     X,y,xTest,yTest = prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, args.ratioTest)
     datatype = '{}filtered{}{}{}Stft{}'.format(subject,freqMin,freqMax,decimation,sizeWindow)
 
-elif data == 'patch':
+elif data == 'p':
 
+    subject=args.subject
+    freqMin=args.freqMin
+    freqMax = args.freqMax
+    decimation = args.decimation
+    sizeWindow = args.sizeWindow
     cardPatch = args.cardPatch
-    
-    if os.path.exists('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch)):
-        print("Loading Model...")
-        X = np.load('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch))
-    else:
-        X = np.load(PATH_TO_DATA+'AfullFiltered4StftMatrix0.2X.npy')
-        patcher = Patcher(X,'mean',cardPatch)
 
-        a = time.time()
-        X = patcher.patchFeatures()
-        print(X.shape)
-        print(time.time()-a)
+    X,y,xTest,yTest =  preparePatch(subject, freqMin, freqMax, decimation,sizeWindow,\
+                                    cardPatch, args.ratioTest,args.outputFormat)
 
-    y = np.load(PATH_TO_DATA+'AfullY.npy')
-    xTest = []
-    yTest = []
-    dataType = 'patchedMean{}'.format(cardPatch)
+    X,xTest = transformLDA(X,y,xTest,yTest,transformedData=dataType,n_components=100)
+
 
 elif data == 'LDA':
 
@@ -152,25 +148,19 @@ if args.transfer:
 #====================================================================
 #====================================================================
 cardJobs=args.jobs
-
-
+scoring=args.scoring
 if model=='lin':
     
-    print(X.shape)
-    learnHyperLinear(X, y, xTest, yTest, 'l2', 'f1',transformedData=dataType,jobs=cardJobs)
+    learnHyperLinear(X, y, xTest, yTest, 'l2', scoring,transformedData=dataType,jobs=cardJobs)
 
 elif model=='nonLin':
     
-    learnHyperNonLinear(X, y, xTest, yTest, 'roc_auc',transformedData=dataType,jobs=cardJobs)
+    learnHyperNonLinear(X, y, xTest, yTest, scoring,transformedData=dataType,jobs=cardJobs)
 
 elif model == 'elastic' :
 
-    learnElasticNet(X,y,xTest,yTest, 'roc_auc', transformedData=dataType, jobs=cardJobs)
+    learnElasticNet(X,y,xTest,yTest, scoring, transformedData=dataType, jobs=cardJobs)
     
-elif model=='LDA':
-
-    learnLDA(X,y,xTest,yTest,transformedData=dataType,n_components=100)
-        
 elif model=='single':
     
     clf = svm.LinearSVC(C=1e-5, class_weight='balanced')
@@ -189,10 +179,10 @@ elif model == 'allS':
     learnHyperLinear(X, y, xTest, yTest, 'l2', 'roc_auc',transformedData=dataType)
 
 elif model == 'step':
-    learnStep(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=3)
+    learnStep(X, y, xTest, yTest, 'l2', scoring, transformedData=dataType,jobs=cardJobs)
 
 elif model == 'elec':
-    learnElecFaster(X, y, xTest, yTest, 'l2', 'roc_auc', transformedData=dataType,jobs=4)
+    learnElecFaster(X, y, xTest, yTest, 'l2', scoring, transformedData=dataType,jobs=cardJobs)
     
 else :
     print(USAGE)

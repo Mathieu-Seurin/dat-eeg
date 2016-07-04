@@ -454,21 +454,3 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
 
         with open("selecStep.txt",'a') as f:
             f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))
-
-def learnLDA(X,y,xTest,yTest,transformedData, n_components):
-
-    originalSize = np.size(X,1)
-    print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
-    priors = [0.9,0.1]
-
-    
-    if SKLEARN_VERSION >= 0.16 :
-        clf = LDA('svd', n_components=n_components, priors=priors)
-    else:
-        clf = LDA(n_components,priors)
-
-    X = clf.fit_transform(X,y)
-    print("True size of X : ", np.size(X,1))
-
-    np.save("{}patchedLDAfrom{}to{}".format(PATH_TO_DATA,originalSize, n_components), X)
-

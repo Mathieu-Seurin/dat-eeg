@@ -72,7 +72,7 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
         raise NotImplemented("Can't use this format at the moment")
 
     #==== If File Already exist, don't recalculate everything : ====
-    if os.path.exists(PATH_TO_DATA+subject+"fullFiltered{}_{}_{}RawX.npy".format(freqInf,freqSup,decimation)):
+    if os.path.exists(PATH_TO_DATA+subject+"fullFiltered{}_{}_{}X.npy".format(freqInf,freqSup,decimation)):
         print("filter Data : File already exists, loading ...")
         return 0
     #===============================================
@@ -105,7 +105,7 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
         if not ex%1000:
             print('Transformed : {}/{}'.format(ex, numExemple))
     print(newData.shape)
-    np.save(PATH_TO_DATA+subject+"fullFiltered{}_{}_{}RawX".format(freqInf,freqSup,decimation), newData)
+    np.save(PATH_TO_DATA+subject+"fullFiltered{}_{}_{}X".format(freqInf,freqSup,decimation), newData)
 
 #============================== TIME FREQUENCIES===============================
 #==============================================================================
@@ -159,7 +159,6 @@ def reformatStftData(filenameI, dataType, fs, frameSize=0.2):
 
     print("""Size of the new signal representation : 
 {} frequencies x {} windows = {}""".format(numFreqs ,numWindows, sizeOfNewSignal))
-
     
     newData = np.empty((numExemple, 64*sizeOfNewSignal))
     for ex, x in enumerate(data):
@@ -425,24 +424,45 @@ def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest
     raise NotImplemented("Not Yet, maybe will never be useful")    
 
 
-def preparePatch(subject, freqMin, freqMax, decimation,frameSize, splitTrainTest,outputFormat):
-
+def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat):
+    
     if subject in ('AB','BA'):
-        preparePatchAB(subject)
-
-    dataType = 'filtered{}_{}_{}stft'
+        preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     reformatStftDataMatrix(
         "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
-        'Filtered{}'.format(decimation), 240//decimation, frameSize=frameSize, outputFormat=outputFormat)
+        'Filtered{}_{}_{}'.format(freqMin,freqMax,decimation), 240//decimation, frameSize=frameSize, outputFormat=outputFormat)
+
+    patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
 
     return splitXY("{}fullFiltered{}StftMatrix{}X.npy".format(subject,decimation,frameSize),"{}fullY.npy".format(subject),splitTrainTest)
 
-def preparePatchAB():
+def preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat):
     raise NotImplemented("Time needs time little hobbit")
+
+
+def transformLDA(X,y,xTest,yTest,transformedData, n_components):
+
+    originalSize = np.size(X,1)
+    print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
+    priors = [0.9,0.1]
+
+    
+    if SKLEARN_VERSION >= 0.16 :
+        clf = LDA('svd', n_components=n_components, priors=priors)
+    else:
+        clf = LDA(n_components,priors)
+
+    X = clf.fit_transform(X,y)
+    print("True size of X : ", np.size(X,1))
+
+    if xTest != []:
+        xTest = clf.transform(xTest)
+
+    return X,xTest
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
@@ -492,6 +512,22 @@ def delElec(X, elec, dataType):
 
 
 ################### Patches Manipulation ##############
+def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr='mean'):
+
+    print "Patch Process :"
+
+    if os.path.exists('{}{}patched{}{}.npy'.format(PATH_TO_DATA,subject,operationStr, cardPatch)):
+        print "File Exists : Loading ..."
+        return np.load('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch))
+
+    else:
+        print("Extracting Patches")
+        X = np.load(PATH_TO_DATA+'{}fullFiltered{}_{}_{}StftMatrix{}X.npy'.format(subject,freqMin,freqMax,decimation,frameSize))
+        patcher = Patcher(X,'mean',cardPatch)
+        X = patcher.patchFeatures()
+        print(X.shape)
+        return X
+                    
 class Patcher(object):
     def __init__(self,X,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
 
@@ -550,6 +586,9 @@ class Patcher(object):
 
         for numEx, ex in enumerate(self.generateXPatched()):
             newX[numEx] = [self.operation(patch) for patch in ex]
+
+            if not numEx%1000:
+                print('Exemple Transformed : {}/{}'.format(numEx, cardExemple))
 
         self.X=newX
         self.saveData()

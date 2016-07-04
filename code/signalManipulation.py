@@ -87,7 +87,7 @@ class SignalHandler(object):
 
         for i in range(0, len(self.mainSignal)-frameAmp, hopAmp):
             fftshifted = self.afft(w*self.mainSignal[i:i+frameAmp])
-            mergedSTFT.append(fftshifted[:np.ceil(float(len(fftshifted))/2)]/frameAmp)
+            mergedSTFT.append(fftshifted[:int(np.ceil(float(len(fftshifted))/2))]/frameAmp)
 
             # print(len(mergedSTFT), len(mergedSTFT[0]))
             # print(mergedSTFT[0])
