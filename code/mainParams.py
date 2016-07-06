@@ -12,7 +12,7 @@ class ArgumentError(Exception): pass
     
 parser = argparse.ArgumentParser()
 allDataType = ['test','random','r','s','f','fs','p']
-allModelType = ['lin','nonLin']
+allModelType = ['lin','nonLin','lda']
 
 #=========================  PARAMETERS  ============================
 #===================================================================
@@ -26,7 +26,7 @@ parser.add_argument("-s", "--subject", help="Which subject to use (default : A)"
 
 parser.add_argument("-j","--jobs",help="Number of jobs used to learn the data", type=int, default=1)
 
-parser.add_argument("--cardRandom",help="Number of features for random data", type=int, default=2)
+parser.add_argument("--cardRandom",help="Number of features for random data", type=int, default=10)
 
 parser.add_argument("-i","--freqMin", help="Frequency filter's lower bound", type=float, default=0.1)
 parser.add_argument("-a","--freqMax", help="Frequency filter's upper bound", type=float, default=60)
@@ -39,11 +39,15 @@ parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, 
 parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no Test)", type=float, default=0)
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
+
 parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int, default=2)
+
+parser.add_argument("--dimReduce", help="Type of dimension reducing (default : PCA)",action="store_true")
+
 
 parser.add_argument("--outputFormat", help="type of output for stft matrix file (default : npy)", default="npy", choices=['npy','mat'])
 
-parser.add_argument("-c", "--copyResults",action="store_true") 
+parser.add_argument("-c", "--copyResults", help="Copy Results to your home if argument presnt", action="store_true") 
 parser.add_argument("-t", "--transfer", help="Transfer Learning if indicated", action="store_true") 
 
 
@@ -52,6 +56,7 @@ print(args,'\n')
 
 data = args.data.lower()
 model = args.model.lower()
+
 #=========================  DATA  ==================================
 #===================================================================
 if data == 'test':
@@ -117,19 +122,10 @@ elif data == 'p':
     X,y,xTest,yTest =  preparePatch(subject, freqMin, freqMax, decimation,sizeWindow,\
                                     cardPatch, args.ratioTest,args.outputFormat)
 
-    X,xTest = transformLDA(X,y,xTest,yTest,transformedData=dataType,n_components=100)
+    if args.dimReduce:
+        X,xTest = dimensionReducePCA(X,xTest)
+    dataType = 'patched{}'.format(cardPatch)
 
-
-elif data == 'LDA':
-
-    cardPatch = 2
-    X = np.load('{}patchedLDA{}.npy'.format(PATH_TO_DATA,cardPatch))
-    y = np.load(PATH_TO_DATA+'AfullY.npy')
-    xTest = []
-    yTest = []
-    dataType = 'patchedLDA{}'.format(cardPatch)
-    
-    
 else :
     print(USAGE)
     raise ArgumentError("Wrong Type of Data")
@@ -142,6 +138,10 @@ if args.transfer:
     dataType = 'filtered4'
 
     print("+ Transfer")
+
+if args.dimReduce:
+    X,xTest = dimensionReducePCA(X,xTest)
+    dataType += "PCA"
 
 #====================================================================
 #=========================  MODEL  ==================================
@@ -156,6 +156,10 @@ if model=='lin':
 elif model=='nonLin':
     
     learnHyperNonLinear(X, y, xTest, yTest, scoring,transformedData=dataType,jobs=cardJobs)
+
+elif model=='lda':
+
+    learnLDAandLin(X, y, xTest, yTest, scoring,transformedData=dataType,jobs=cardJobs)
 
 elif model == 'elastic' :
 
@@ -188,6 +192,6 @@ else :
     print(USAGE)
     raise ArgumentError("Wrong Type of Model")
 
-if copyResults:
+if args.copyResults:
     os.system("cp Results/*.txt ~")
 

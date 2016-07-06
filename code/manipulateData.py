@@ -8,9 +8,15 @@ import scipy.io as sio
 from scipy.sparse import lil_matrix
 from signalManipulation import *
 from sklearn.preprocessing import StandardScaler
+from sklearn.cross_validation import StratifiedKFold
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+
+
+from sklearn.decomposition import PCA
 
 import os.path
 import time
+
 
 class NotImplementedYet(Exception): pass
 
@@ -18,6 +24,9 @@ class NotImplementedYet(Exception): pass
 PATH_TO_DATA = 'Data/'
 PATH_TO_MODEL = 'Models/'
 
+from sklearn import __version__
+SKLEARN_VERSION = float(__version__[-6:-2])
+print(SKLEARN_VERSION)
 
 class NotImplemented(Exception): pass
 
@@ -424,7 +433,7 @@ def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest
     raise NotImplemented("Not Yet, maybe will never be useful")    
 
 
-def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat):
+def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr='mean'):
     
     if subject in ('AB','BA'):
         preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
@@ -438,31 +447,10 @@ def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,split
 
     patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
 
-    return splitXY("{}fullFiltered{}StftMatrix{}X.npy".format(subject,decimation,frameSize),"{}fullY.npy".format(subject),splitTrainTest)
+    return splitXY("{}patched{}{}.npy".format(subject,operationStr.title(),cardPatch),"{}fullY.npy".format(subject),splitTrainTest)
 
 def preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat):
     raise NotImplemented("Time needs time little hobbit")
-
-
-def transformLDA(X,y,xTest,yTest,transformedData, n_components):
-
-    originalSize = np.size(X,1)
-    print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
-    priors = [0.9,0.1]
-
-    
-    if SKLEARN_VERSION >= 0.16 :
-        clf = LDA('svd', n_components=n_components, priors=priors)
-    else:
-        clf = LDA(n_components,priors)
-
-    X = clf.fit_transform(X,y)
-    print("True size of X : ", np.size(X,1))
-
-    if xTest != []:
-        xTest = clf.transform(xTest)
-
-    return X,xTest
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
@@ -510,26 +498,41 @@ def delElec(X, elec, dataType):
     X = X[:, mask]
     return X    
 
+def dimensionReducePCA(X,xTest):
 
-################### Patches Manipulation ##############
+    print("PCA : reducing {} features".format(np.size(X,1))
+)
+    
+    pca = PCA(n_components='mle')
+    X = pca.fit_transform(X)
+    
+    print("True size of X : ", X.shape)
+
+    if xTest != []:
+        xTest = pca.transform(xTest)
+
+    return X,xTest
+
+#==================Patches Manipulation ===================
+#==========================================================
 def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr='mean'):
 
     print "Patch Process :"
 
-    if os.path.exists('{}{}patched{}{}.npy'.format(PATH_TO_DATA,subject,operationStr, cardPatch)):
+    if os.path.exists('{}{}patched{}{}.npy'.format(PATH_TO_DATA,subject,operationStr.title(), cardPatch)):
         print "File Exists : Loading ..."
-        return np.load('{}patchedMean{}.npy'.format(PATH_TO_DATA,cardPatch))
+        return np.load('{}{}patched{}{}.npy'.format(PATH_TO_DATA,subject,operationStr.title(),cardPatch))
 
     else:
         print("Extracting Patches")
         X = np.load(PATH_TO_DATA+'{}fullFiltered{}_{}_{}StftMatrix{}X.npy'.format(subject,freqMin,freqMax,decimation,frameSize))
-        patcher = Patcher(X,'mean',cardPatch)
+        patcher = Patcher(X,subject,'mean',cardPatch)
         X = patcher.patchFeatures()
         print(X.shape)
         return X
                     
 class Patcher(object):
-    def __init__(self,X,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
+    def __init__(self,X,subject,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
 
         self.X = X
         dictOpe = {'mean':np.mean, 'sum':np.sum}
@@ -539,6 +542,7 @@ class Patcher(object):
         self.elecWidth = elecWidth
         self.freqWidth = freqWidth
         self.winWidth = winWidth
+        self.subject = subject
         
     def generateXPatched(self):
         """
@@ -595,4 +599,4 @@ class Patcher(object):
         return self.X
 
     def saveData(self):
-        np.save("{}patched{}{}".format(PATH_TO_DATA,self.operationStr.title(), self.cardPatch),self.X)
+        np.save("{}{}patched{}{}".format(PATH_TO_DATA,self.subject,self.operationStr.title(), self.cardPatch),self.X)

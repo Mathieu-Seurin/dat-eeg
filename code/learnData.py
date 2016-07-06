@@ -9,20 +9,20 @@ from manipulateData import *
 #Module
 import pickle
 
-from sklearn import __version__
-SKLEARN_VERSION = float(__version__[:4])
-
 from sklearn import svm, grid_search
 from sklearn.linear_model import ElasticNetCV, ElasticNet
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, roc_auc_score
 from sklearn.preprocessing import scale
 
-from sklearn.lda import LDA
-from sklearn.qda import QDA
-
 from copy import copy
 
 import pylab as pl
+
+if SKLEARN_VERSION >= 0.17:
+    CLASS_WEIGHT='balanced'
+else:
+    CLASS_WEIGHT='auto'
+
 
 RESULTS_PATH = 'Results/'
 
@@ -202,7 +202,7 @@ def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=
 
     #Creating Model and begin classification
     #=======================================
-    classif = svm.LinearSVC(penalty=penalty, class_weight='auto',  dual=dual)
+    classif = svm.LinearSVC(penalty=penalty, class_weight=CLASS_WEIGHT,  dual=dual)
     clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3, refit=testAvailable)
     print("Begin\n...")
     clf.fit(X,y)
@@ -239,7 +239,7 @@ def learnHyperNonLinear(X, y, xTest, yTest, scoring, transformedData,jobs=1):
     
     #Creating Model and begin classification
     #=======================================
-    classif = svm.SVC(class_weight='auto')
+    classif = svm.SVC(class_weight=CLASS_WEIGHT)
     clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs,verbose=3,refit=testAvailable)
     print("Begin\n...")
     clf.fit(X,y)
@@ -304,9 +304,56 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
     with open('nonZerosParamsRawElasticNet', 'w') as f:
         f.write(str(list(nonZerosParams)))
 
+def transformLDA(X,y,xTest,yTest, n_components):
+    
+    originalSize = np.size(X,1)
+    print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
+    priors = [0.9,0.1]
+
+    clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
+    print(X.shape)
+    X = clf.fit_transform(X,y)
+    print("True size of X : ", X.shape)
+
+    if xTest != []:
+        xTest = clf.transform(xTest)
+
+    return X,xTest
+
+def learnLDAandLin(X,y,xTest,yTest,scoring, transformedData, jobs):
+
+    score = []
+    skf = StratifiedKFold(y,n_folds=5)
+    penalty = 'l2'
+
+    
+    for trainIndex,testIndex in skf:
+        xTrain, xTest = X[trainIndex], X[testIndex]
+        yTrain, yTest = y[trainIndex], y[testIndex]
+
+        xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=1)
+
+        print(xTest.shape,xTrain.shape)
+        cRange = np.logspace(-5,1,7)
+        parameters = {'C': cRange}
+
+        print(xTrain.shape)
+
+        classif = svm.LinearSVC(penalty=penalty, class_weight=CLASS_WEIGHT)
+        clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
+        print("Begin\n...")
+        clf.fit(xTrain,yTrain)
+
+        scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
+        score.append(scores['f1Test'])
+
+    score = np.array(score).mean()
+    
+
+
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight=CLASS_WEIGHT)
     cRange = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1, 10]
     parameters = {'C': cRange}
 
@@ -379,7 +426,7 @@ def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
 def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
     
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight=CLASS_WEIGHT)
     cRange = np.logspace(-5,2,8)
     
     parameters = {'C': cRange}
@@ -395,7 +442,7 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
 
     # C = bestParams['C']
     C = 1e-5
-    baseClf = svm.LinearSVC(penalty='l2', class_weight='auto')
+    baseClf = svm.LinearSVC(penalty='l2', class_weight=CLASS_WEIGHT)
 
     best_score = 0
     best_selection = []
