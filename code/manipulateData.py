@@ -534,7 +534,7 @@ class Patcher(object):
     def __init__(self,X,subject,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
 
         self.X = X
-        dictOpe = {'mean':np.mean, 'sum':np.sum,'max':np.max,'custom':self._customOpe}
+        dictOpe = {'mean':np.mean, 'sum':np.sum,'max':np.max,'maxFreqWin':self._MaxFreqPerWin}
         self.operationStr = operationStr
         self.operation = dictOpe[self.operationStr]
         self.cardPatch = cardPatch
@@ -543,13 +543,30 @@ class Patcher(object):
         self.winWidth = winWidth
         self.subject = subject
 
-    def _customOpe(self,patch):
-        return np.max(patch)
+    def _MaxFreqPerWin(self,patch):
+        maxFreq = patch.sum(axis=0).argmax(axis=0)
+        assert np.size(maxFreq)==self.winWidth*2+1
+        return maxFreq
+
+    def generate1Patch(self):
+
+        cardExemple, cardElec, cardFreq, cardWin = self.X.shape
+
+
+        randElec = np.random.randint(low=self.elecWidth, high=cardElec-self.elecWidth, size=1)
+        randFreq = np.random.randint(low=self.freqWidth, high=cardFreq-self.freqWidth, size=1)
+        randWin = np.random.randint(low=self.winWidth, high=cardWin-self.winWidth, size=1)
+
+        slices = [slice(randElec-self.elecWidth,randElec+self.elecWidth+1),\
+              slice(randFreq-self.freqWidth,randFreq+self.freqWidth+1),\
+                   slice(randWin-self.winWidth,randWin+self.winWidth+1)]
+
+        return self.X[0][slices]
+
+        
         
     def generateXPatched(self):
         """
-        Idée : Tenir compte de la topologie des électrodes pour la sélection
-
         Input
         ======
         X is a matrix of exemple, all of them represented in time-frequencies
@@ -588,10 +605,13 @@ class Patcher(object):
 
     def patchFeatures(self,save=True):
         cardExemple = np.size(self.X,0)
-        newX = np.empty( (cardExemple, self.cardPatch), np.float64)
+        sizePatch = np.size(self.operation(self.generate1Patch()))
+        print sizePatch
+        print self.cardPatch
+        newX = np.empty((cardExemple, self.cardPatch*sizePatch), np.float64)
 
         for numEx, ex in enumerate(self.generateXPatched()):
-            newX[numEx] = [self.operation(patch) for patch in ex]
+            newX[numEx] = np.array([self.operation(patch) for patch in ex]).flatten()
 
             if not numEx%1000:
                 print('Exemple Transformed : {}/{}'.format(numEx, cardExemple))

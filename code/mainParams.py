@@ -32,7 +32,7 @@ parser.add_argument("-i","--freqMin", help="Frequency filter's lower bound", typ
 parser.add_argument("-a","--freqMax", help="Frequency filter's upper bound", type=float, default=60)
 parser.add_argument("-d","--decimation", help="Decimation Factor (Downsampling)", type=int, default=4)
 
-parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.07)
+parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.2)
 
 parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, accuracy)", choices=['f1', 'roc_auc', 'accuracy'], default='f1')
 

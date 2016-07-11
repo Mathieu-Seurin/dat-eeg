@@ -18,7 +18,6 @@ if sys.argv[1] == 'sin':
 
     x = np.linspace(0, T, fs*T, fs)
 
-    signal = np.array([])
     signal = sin(2*pi*f0*x) #5Hz
     signal += sin(2*pi*2*f0*x) #10Hz
 
@@ -30,14 +29,15 @@ if sys.argv[1] == 'sin':
 
 elif sys.argv[1] == 'mean':
 
-    X, y, _, _ = prepareFiltered('A',0.5,60,4)
+    decimation = 1
+    X, y, _, _ = prepareFiltered('A',0.5,60,decimation)
 
     lenSig = np.size(X,1)/64
-    fs = 240//4
+    fs = 240//decimation
 
     frameSize = 0.2
 
-    p300 = np.where(y==1)[0][:5]
+    p300 = np.where(y==1)[0][:50]
     nonp300 = np.where(y==-1)[0][:5]
 
     for numElec in [11,47,48,49,50]:
