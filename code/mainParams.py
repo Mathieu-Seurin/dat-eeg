@@ -32,7 +32,7 @@ parser.add_argument("-i","--freqMin", help="Frequency filter's lower bound", typ
 parser.add_argument("-a","--freqMax", help="Frequency filter's upper bound", type=float, default=60)
 parser.add_argument("-d","--decimation", help="Decimation Factor (Downsampling)", type=int, default=4)
 
-parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.2)
+parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.07)
 
 parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, accuracy)", choices=['f1', 'roc_auc', 'accuracy'], default='f1')
 
@@ -44,7 +44,7 @@ parser.add_argument("--LDAcompress", help="Size of features compression (default
 
 parser.add_argument("--dimReduce", help="Type of dimension reducing (default : PCA)",action="store_true")
 
-
+parser.add_argument("--operationStr", help="Type of operation to apply to patches",default='mean')
 parser.add_argument("--outputFormat", help="type of output for stft matrix file (default : npy)", default="npy", choices=['npy','mat'])
 
 parser.add_argument("-c", "--copyResults", help="Copy Results to your home if argument presnt", action="store_true") 
@@ -112,15 +112,9 @@ elif data == 'fs':
 
 elif data == 'p':
 
-    subject=args.subject
-    freqMin=args.freqMin
-    freqMax = args.freqMax
-    decimation = args.decimation
-    sizeWindow = args.sizeWindow
     cardPatch = args.cardPatch
 
-    X,y,xTest,yTest =  preparePatch(subject, freqMin, freqMax, decimation,sizeWindow,\
-                                    cardPatch, args.ratioTest,args.outputFormat)
+    X,y,xTest,yTest =  preparePatch(args.subject, args.freqMin, args.freqMax, args.decimation,args.sizeWindow,cardPatch, args.ratioTest,args.outputFormat,args.operationStr)
 
     if args.dimReduce:
         X,xTest = dimensionReducePCA(X,xTest)

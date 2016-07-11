@@ -39,14 +39,14 @@ class SignalHandler(object):
             
         self.fs = fs #frequency Sampling
         self.numPoints = len(self.mainSignal)
-        self.duration = self.numPoints/fs
+        self.duration = float(self.numPoints)/fs
         self.a = None
         self.b = None
 
     def plot(self):
 
         x = np.linspace(0, self.duration, len(self.mainSignal) , endpoint=False)
-
+        
         plt.plot(x,self.mainSignal)
         plt.ylabel('mV')
         plt.xlabel('Time in S')

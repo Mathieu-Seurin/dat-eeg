@@ -327,8 +327,8 @@ def splitXY(fileX, fileY,split=0.70):
     y = np.load(PATH_TO_DATA+fileY)
 
     if split==0:
-        scaler = StandardScaler()
-        X = scaler.fit_transform(X)
+        # scaler = StandardScaler()
+        # X = scaler.fit_transform(X)
         return X,y,np.array([]),np.array([])
     
     numExemples = np.size(X,0)
@@ -359,7 +359,7 @@ def concatAB(fileXA, fileYA, fileXB, fileYB, dataType):
     np.save(PATH_TO_DATA+"ABfull{}X".format(dataType.title()), fullX)
     np.save(PATH_TO_DATA+"ABfullY", fullY)
     
-def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest):
+def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest=0):
 
     if subject in ('AB','BA'):
         return prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest)
@@ -367,8 +367,7 @@ def prepareFiltered(subject, freqMin, freqMax, decimation, splitTrainTest):
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject),"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
-    return splitXY("{}fullFiltered{}_{}_{}RawX.npy".format(subject,freqMin,freqMax,decimation),\
-            "{}fullY.npy".format(subject),splitTrainTest)
+    return splitXY("{}fullFiltered{}_{}_{}X.npy".format(subject,freqMin,freqMax,decimation), "{}fullY.npy".format(subject),splitTrainTest)
 
 def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest):
 
@@ -378,12 +377,12 @@ def prepareFilteredAB(freqMin,freqMax,decimation,splitTrainTest):
     reformatRawData("Subject_B_Train_reshaped.mat","BfullRawX")
     filterRawData("BfullRawX.npy", freqMin, freqMax, decimation)
 
-    concatAB("AfullFiltered{}_{}_{}RawX.npy".format(freqMin,freqMax,decimation),"AfullY.npy",\
-             "BfullFiltered{}_{}_{}RawX.npy".format(freqMin,freqMax,decimation),"BfullY.npy",'Filtered')
+    concatAB("AfullFiltered{}_{}_{}X.npy".format(freqMin,freqMax,decimation),"AfullY.npy",\
+             "BfullFiltered{}_{}_{}X.npy".format(freqMin,freqMax,decimation),"BfullY.npy",'Filtered')
 
     return splitXY("ABfullFilteredX.npy","ABfullY.npy",splitTrainTest)
     
-def prepareRaw(subject,splitTrainTest):
+def prepareRaw(subject,splitTrainTest=0):
 
     if subject in ('AB','BA'):
         return prepareRawAB(splitTrainTest)
@@ -395,7 +394,7 @@ def prepareRawAB(splitTrainTest):
         
     reformatRawData("Subject_A_Train_reshaped.mat","AfullRawX")
     reformatRawData("Subject_B_Train_reshaped.mat","BfullRawX")
-    concatAB("AfullRawX.npy","AfullY.npy", "BfullRawX.npy","BfullY.npy")
+    concatAB("AfullRawX.npy","AfullY.npy", "BfullRawX.npy","BfullY.npy",'raw')
 
     return splitXY("ABfullRawX.npy","ABfullY.npy",splitTrainTest)
 
@@ -423,7 +422,7 @@ def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTr
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     reformatStftData(
-        "{}fullFiltered{}_{}_{}RawX.npy".format(subject, freqMin, freqMax, decimation),
+        "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
         'Filtered{}'.format(decimation), 240//decimation, frameSize) 
 
     return splitXY("{}fullFiltered{}Stft{}X.npy".format(subject, decimation, frameSize),\
@@ -433,7 +432,7 @@ def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest
     raise NotImplemented("Not Yet, maybe will never be useful")    
 
 
-def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr='mean'):
+def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr):
     
     if subject in ('AB','BA'):
         preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
@@ -445,7 +444,7 @@ def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,split
         "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
         'Filtered{}_{}_{}'.format(freqMin,freqMax,decimation), 240//decimation, frameSize=frameSize, outputFormat=outputFormat)
 
-    patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
+    patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr)
 
     return splitXY("{}patched{}{}.npy".format(subject,operationStr.title(),cardPatch),"{}fullY.npy".format(subject),splitTrainTest)
 
@@ -503,7 +502,7 @@ def dimensionReducePCA(X,xTest):
     print("PCA : reducing {} features".format(np.size(X,1))
 )
     
-    pca = PCA(n_components='mle')
+    pca = PCA(n_components=np.size(X,1)//10)
     X = pca.fit_transform(X)
     
     print("True size of X : ", X.shape)
@@ -515,7 +514,7 @@ def dimensionReducePCA(X,xTest):
 
 #==================Patches Manipulation ===================
 #==========================================================
-def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr='mean'):
+def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr):
 
     print "Patch Process :"
 
@@ -526,7 +525,7 @@ def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,split
     else:
         print("Extracting Patches")
         X = np.load(PATH_TO_DATA+'{}fullFiltered{}_{}_{}StftMatrix{}X.npy'.format(subject,freqMin,freqMax,decimation,frameSize))
-        patcher = Patcher(X,subject,'mean',cardPatch)
+        patcher = Patcher(X,subject,operationStr,cardPatch)
         X = patcher.patchFeatures()
         print(X.shape)
         return X
@@ -535,7 +534,7 @@ class Patcher(object):
     def __init__(self,X,subject,operationStr,cardPatch=2, elecWidth=2,freqWidth=1, winWidth=1):
 
         self.X = X
-        dictOpe = {'mean':np.mean, 'sum':np.sum}
+        dictOpe = {'mean':np.mean, 'sum':np.sum,'max':np.max,'custom':self._customOpe}
         self.operationStr = operationStr
         self.operation = dictOpe[self.operationStr]
         self.cardPatch = cardPatch
@@ -543,6 +542,9 @@ class Patcher(object):
         self.freqWidth = freqWidth
         self.winWidth = winWidth
         self.subject = subject
+
+    def _customOpe(self,patch):
+        return np.max(patch)
         
     def generateXPatched(self):
         """
@@ -554,7 +556,7 @@ class Patcher(object):
         X must be a 4-D matrix (#Exemple x #Electrodes x #Frequencies x #Windows)
 
         xxxWidth : size of the patch on the xxx dimension : (2*xxxWidth)+1
-        Ex : elecWidth = 2, 2*2+1=5, 5 electrode will be taken in the patch
+        Ex : elecWidth = 2, 2*2+1=5, 5 electrodes will be taken in the patch
 
         Yield (Didn't use 'return' because of memory problem)
         =====
