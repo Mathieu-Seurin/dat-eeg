@@ -334,7 +334,7 @@ def learnLDAandLin(X,y,xTest,yTest,scoring, transformedData, jobs):
         xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=1)
 
         print(xTest.shape,xTrain.shape)
-        cRange = np.logspace(-5,1,7)
+        cRange = np.logspace(-5,1,3)
         parameters = {'C': cRange}
 
         print(xTrain.shape)
@@ -347,7 +347,9 @@ def learnLDAandLin(X,y,xTest,yTest,scoring, transformedData, jobs):
         scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
         score.append(scores['f1Test'])
 
-    score = np.array(score).mean()
+        break
+
+    writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'LDALin', penalty, scoring, transformedData, scores=scores)
     
 
 

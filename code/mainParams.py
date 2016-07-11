@@ -40,7 +40,7 @@ parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no 
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
 
-parser.add_argument("--LDAcompress", help="Size of features compression (default : 2)", type = int, default=2)
+parser.add_argument("--compressFactor", help="Size of features compression (default : 2)", type = int, default=2)
 
 parser.add_argument("--dimReduce", help="Type of dimension reducing (default : PCA)",action="store_true")
 
@@ -116,8 +116,6 @@ elif data == 'p':
 
     X,y,xTest,yTest =  preparePatch(args.subject, args.freqMin, args.freqMax, args.decimation,args.sizeWindow,cardPatch, args.ratioTest,args.outputFormat,args.operationStr)
 
-    if args.dimReduce:
-        X,xTest = dimensionReducePCA(X,xTest)
     dataType = 'patched{}'.format(cardPatch)
 
 else :
@@ -134,8 +132,9 @@ if args.transfer:
     print("+ Transfer")
 
 if args.dimReduce:
-    X,xTest = dimensionReducePCA(X,xTest)
-    dataType += "PCA"
+    compressFactor = args.compressFactor
+    X,xTest = dimensionReducePCA(X,xTest,compressFactor)
+    dataType += "PCA{}".format(compressFactor)
 
 #====================================================================
 #=========================  MODEL  ==================================
@@ -143,6 +142,7 @@ if args.dimReduce:
 #====================================================================
 cardJobs=args.jobs
 scoring=args.scoring
+
 if model=='lin':
     
     learnHyperLinear(X, y, xTest, yTest, 'l2', scoring,transformedData=dataType,jobs=cardJobs)

@@ -497,11 +497,11 @@ def delElec(X, elec, dataType):
     X = X[:, mask]
     return X    
 
-def dimensionReducePCA(X,xTest):
+def dimensionReducePCA(X,xTest,n_components=100):
 
     print("PCA : reducing {} features".format(np.size(X,1))
 )
-    
+
     pca = PCA(n_components=np.size(X,1)//10)
     X = pca.fit_transform(X)
     
