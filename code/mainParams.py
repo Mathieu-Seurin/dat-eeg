@@ -30,13 +30,13 @@ parser.add_argument("--cardRandom",help="Number of features for random data", ty
 
 parser.add_argument("-i","--freqMin", help="Frequency filter's lower bound", type=float, default=0.1)
 parser.add_argument("-a","--freqMax", help="Frequency filter's upper bound", type=float, default=60)
-parser.add_argument("-d","--decimation", help="Decimation Factor (Downsampling)", type=int, default=4)
+parser.add_argument("-d","--decimation", help="Decimation Factor (Downsampling)", type=int, default=1)
 
 parser.add_argument("-w","--sizeWindow", help="Size of STFT window", type=float, default=0.2)
 
 parser.add_argument("--scoring", help="Score Function used for CV (f1, roc_auc, accuracy)", choices=['f1', 'roc_auc', 'accuracy'], default='f1')
 
-parser.add_argument("--ratioTest", help="Ratio Train/Test used (default : 0, no Test)", type=float, default=0)
+parser.add_argument('-r',"--ratioTrainTest", help="Ratio Train/Test used (default : 0, no Test)", type=float, default=0)
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
 
@@ -72,8 +72,8 @@ if data == 'test':
     yTest = []
 
 elif data == 'random':
-    X = np.random.random((15300,args.cardRandom))
     y = np.load(PATH_TO_DATA+'AfullY.npy')
+    X = np.random.random((np.size(y),args.cardRandom))
 
     xTest = []
     yTest = []
@@ -81,12 +81,12 @@ elif data == 'random':
 
 elif data == 'r':
     
-    X,y,xTest,yTest = prepareRaw(args.subject,args.ratioTest)
+    X,y,xTest,yTest = prepareRaw(args.subject,args.ratioTrainTest)
     dataType='raw'
 
 elif data == 's':
 
-    X,y,xTest,yTest = prepareStft(args.subject,args.sizeWindow,args.ratioTest)
+    X,y,xTest,yTest = prepareStft(args.subject,args.sizeWindow,args.ratioTrainTest)
     dataType="stft{}".format(args.sizeWindow)
 
 elif data=='f':
@@ -96,7 +96,7 @@ elif data=='f':
     freqMax = args.freqMax
     decimation = args.decimation
     
-    X,y,xTest,yTest = prepareFiltered(subject,freqMin,freqMax,decimation,args.ratioTest)
+    X,y,xTest,yTest = prepareFiltered(subject,freqMin,freqMax,decimation,args.ratioTrainTest)
     dataType = '{}filtered{}{}{}'.format(subject,freqMin,freqMax,decimation)
 
 elif data == 'fs':
@@ -107,22 +107,20 @@ elif data == 'fs':
     decimation = args.decimation
     sizeWindow = args.sizeWindow
     
-    X,y,xTest,yTest = prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, args.ratioTest)
-    datatype = '{}filtered{}{}{}Stft{}'.format(subject,freqMin,freqMax,decimation,sizeWindow)
+    X,y,xTest,yTest = prepareFilteredStft(subject, freqMin, freqMax, decimation,args.sizeWindow, args.ratioTrainTest)
+    dataType = '{}filtered{}{}{}Stft{}'.format(subject,freqMin,freqMax,decimation,sizeWindow)
 
 elif data == 'p':
 
     cardPatch = args.cardPatch
 
-    X,y,xTest,yTest =  preparePatch(args.subject, args.freqMin, args.freqMax, args.decimation,args.sizeWindow,cardPatch, args.ratioTest,args.outputFormat,args.operationStr)
-
+    X,y,xTest,yTest =  preparePatch(args.subject, args.freqMin, args.freqMax, args.decimation,args.sizeWindow,cardPatch, args.ratioTrainTest,args.outputFormat,args.operationStr)
     dataType = 'patched{}'.format(cardPatch)
 
 else :
     print(USAGE)
     raise ArgumentError("Wrong Type of Data")
 
-print(dataType)
 
 if args.transfer:
 
@@ -135,6 +133,13 @@ if args.dimReduce:
     compressFactor = args.compressFactor
     X,xTest = dimensionReducePCA(X,xTest,compressFactor)
     dataType += "PCA{}".format(compressFactor)
+
+dataType += "Balanced"
+print(dataType)
+
+#================= Normalisation des données =====================
+#=================================================================
+X,xTest = normalizeData(X,xTest)
 
 #====================================================================
 #=========================  MODEL  ==================================

@@ -26,6 +26,7 @@ else:
 
 RESULTS_PATH = 'Results/'
 
+class NoTestError(Exception): pass
 #======================== TOOLS ========================
 #======================================================
 def writeResults(results, best_params, best_score, modelType, penalty, scoreType,\
@@ -320,38 +321,28 @@ def transformLDA(X,y,xTest,yTest, n_components):
 
     return X,xTest
 
-def learnLDAandLin(X,y,xTest,yTest,scoring, transformedData, jobs):
+def learnLDAandLin(xTrain,yTrain,xTest,yTest,scoring, transformedData, jobs):
 
-    score = []
-    skf = StratifiedKFold(y,n_folds=5)
+    if np.size(xTest)==0:
+        raise NoTestError("A test file is needed for LDA, add '-r 0.7' option when calling mainParams.py")
+
     penalty = 'l2'
+    xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=1)
 
-    
-    for trainIndex,testIndex in skf:
-        xTrain, xTest = X[trainIndex], X[testIndex]
-        yTrain, yTest = y[trainIndex], y[testIndex]
+    print(xTest.shape,xTrain.shape)
+    cRange = np.logspace(-5,1,3)
+    parameters = {'C': cRange}
 
-        xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=1)
+    print(xTrain.shape)
 
-        print(xTest.shape,xTrain.shape)
-        cRange = np.logspace(-5,1,3)
-        parameters = {'C': cRange}
+    classif = svm.LinearSVC(penalty=penalty, class_weight=CLASS_WEIGHT)
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
+    print("Begin\n...")
+    clf.fit(xTrain,yTrain)
 
-        print(xTrain.shape)
-
-        classif = svm.LinearSVC(penalty=penalty, class_weight=CLASS_WEIGHT)
-        clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
-        print("Begin\n...")
-        clf.fit(xTrain,yTrain)
-
-        scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
-        score.append(scores['f1Test'])
-
-        break
-
+    scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
     writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'LDALin', penalty, scoring, transformedData, scores=scores)
     
-
 
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 

@@ -306,8 +306,6 @@ def splitXY(fileX, fileY,split=0.70):
     y = np.load(PATH_TO_DATA+fileY)
 
     if split==0:
-        # scaler = StandardScaler()
-        # X = scaler.fit_transform(X)
         return X,y,np.array([]),np.array([])
     
     numExemples = np.size(X,0)
@@ -318,14 +316,9 @@ def splitXY(fileX, fileY,split=0.70):
     randSelection = np.random.sample(np.size(X,0))
     trainIndex = np.where(randSelection < split)
     testIndex = np.where(randSelection >= split)
-
-    scaler = StandardScaler()
     
-    xTrain = scaler.fit_transform(X[trainIndex])
-    xTest = scaler.transform(X[testIndex])
-    
-    saveSplitted(xTrain, y[trainIndex], xTest, y[testIndex])
-    return xTrain, y[trainIndex], xTest, y[testIndex]
+    saveSplitted(X[trainIndex], y[trainIndex], X[testIndex], y[testIndex])
+    return X[trainIndex], y[trainIndex], X[testIndex], y[testIndex]
 
 def concatAB(fileXA, fileYA, fileXB, fileYB, dataType):
 
@@ -405,7 +398,7 @@ def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTr
         'Filtered{}'.format(decimation), 240//decimation, frameSize) 
 
     return splitXY("{}fullFiltered{}Stft{}X.npy".format(subject, decimation, frameSize),\
-                   "{}fullY.npy".format(subject), "Filtered{}".format(decimation), splitTrainTest)
+                   "{}fullY.npy".format(subject), splitTrainTest)
 
 def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest):
     raise NotImplemented("Not Yet, maybe will never be useful")    
@@ -432,6 +425,16 @@ def preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTe
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
+def normalizeData(X,xTest):
+
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    if np.size(xTest)!=0:
+        xTest = scaler.transform(xTest)
+
+    return X,xTest
+
 def delTimeStep(X, timeStep, dataType):
 
     if 'stft' in dataType or 'Stft' in dataType :
