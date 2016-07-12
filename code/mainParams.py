@@ -129,7 +129,7 @@ if args.transfer:
     X,y,xTest,yTest = prepareTransfertFiltered(0.5,30,4)
     dataType = 'filtered4'
 
-    print("+ Transfer")
+    print("+Transfer")
 
 if args.dimReduce:
     compressFactor = args.compressFactor

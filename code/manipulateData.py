@@ -26,22 +26,9 @@ PATH_TO_MODEL = 'Models/'
 
 from sklearn import __version__
 SKLEARN_VERSION = float(__version__[-6:-2])
-print(SKLEARN_VERSION)
+print "Sklearn Version :", SKLEARN_VERSION
 
 class NotImplemented(Exception): pass
-
-#======================= TEST ===========
-def savePartOfData(filenameI, filenameO):
-    """
-    Function only for test purpose
-    """
-    data = sio.loadmat("{}{}".format(PATH_TO_DATA, filenameI))
-    miniData = np.array(data['X'][0])
-    miniData = miniData.transpose()
-    y = [elem[0] for elem in data['y']]
-
-    np.save(filenameO, miniData)
-    np.save('{}fullY'.format(PATH_TO_DATA), y)
 
 #============================== RAW ===========================================
 #==============================================================================
@@ -57,19 +44,12 @@ def reformatRawData(filenameI, filenameO):
     print("Reformat Raw Data : File doesn't exist, creating ...")
 
     data = sio.loadmat("{}{}".format(PATH_TO_DATA, filenameI))
-    y = [elem[0] for elem in data['y']]
-    data = np.array(data['X'])
-
-    #TODO MODIFY 160
-    numExemple = np.size(data,2)
-    newData = np.empty([numExemple, 64*160])
-
-    for exemple in range(numExemple):
-        newData[exemple, :] = np.concatenate( [data[i,:,exemple] for i in range(64)])
+    y = data['y']
+    y = y.reshape(np.size(y,1))
+    X = data['X']
 
     np.save('{}{}fullY'.format(PATH_TO_DATA, filenameO[0]), y)
-
-    np.save('{}{}'.format(PATH_TO_DATA, filenameO), newData)
+    np.save('{}{}'.format(PATH_TO_DATA, filenameO), X)
 
 def filterRawData(filenameI, freqInf, freqSup, decimation):
 
@@ -113,7 +93,6 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
 
         if not ex%1000:
             print('Transformed : {}/{}'.format(ex, numExemple))
-    print(newData.shape)
     np.save(PATH_TO_DATA+subject+"fullFiltered{}_{}_{}X".format(freqInf,freqSup,decimation), newData)
 
 #============================== TIME FREQUENCIES===============================
@@ -527,7 +506,6 @@ def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,split
         X = np.load(PATH_TO_DATA+'{}fullFiltered{}_{}_{}StftMatrix{}X.npy'.format(subject,freqMin,freqMax,decimation,frameSize))
         patcher = Patcher(X,subject,operationStr,cardPatch)
         X = patcher.patchFeatures()
-        print(X.shape)
         return X
                     
 class Patcher(object):
@@ -551,8 +529,6 @@ class Patcher(object):
     def generate1Patch(self):
 
         cardExemple, cardElec, cardFreq, cardWin = self.X.shape
-
-
         randElec = np.random.randint(low=self.elecWidth, high=cardElec-self.elecWidth, size=1)
         randFreq = np.random.randint(low=self.freqWidth, high=cardFreq-self.freqWidth, size=1)
         randWin = np.random.randint(low=self.winWidth, high=cardWin-self.winWidth, size=1)
@@ -606,8 +582,6 @@ class Patcher(object):
     def patchFeatures(self,save=True):
         cardExemple = np.size(self.X,0)
         sizePatch = np.size(self.operation(self.generate1Patch()))
-        print sizePatch
-        print self.cardPatch
         newX = np.empty((cardExemple, self.cardPatch*sizePatch), np.float64)
 
         for numEx, ex in enumerate(self.generateXPatched()):
@@ -622,3 +596,55 @@ class Patcher(object):
 
     def saveData(self):
         np.save("{}{}patched{}{}".format(PATH_TO_DATA,self.subject,self.operationStr.title(), self.cardPatch),self.X)
+
+
+#======================= 1-usage function ===========
+#====================================================
+def savePartOfData(filenameI, filenameO):
+    """
+    Function only for test purpose
+    """
+    data = sio.loadmat("{}{}".format(PATH_TO_DATA, filenameI))
+    miniData = np.array(data['X'][0])
+    miniData = miniData.transpose()
+    y = [elem[0] for elem in data['y']]
+
+    np.save(filenameO, miniData)
+    np.save('{}fullY'.format(PATH_TO_DATA), y)
+
+def saveBalancedMat(subject):
+
+    data = sio.loadmat("{}Subject_{}_Train_reshapedCopy.mat".format(PATH_TO_DATA,subject))
+    y = np.array([elem[0] for elem in data['y']])
+    X = np.array(data['X'])
+
+    data = {'X':None,'y':None}
+    print y[0]
+
+    #TODO MODIFY 160
+    numExemple = np.size(X,2)
+    newData = np.empty([numExemple, 64*160])
+
+    for exemple in range(numExemple):
+        newData[exemple, :] = np.concatenate( [X[i,:,exemple] for i in range(64)])
+        
+    allNegIndex = np.where(y==-1)[0]
+    allPosIndex = np.where(y==1)[0]
+    
+    cardNeg = np.size(allNegIndex)
+    cardPos = np.size(allPosIndex)
+
+    print cardPos,cardNeg
+    
+    fewerNegIndex = np.array(list(set(allNegIndex[np.random.randint(low=0,high=cardNeg,size=cardPos+60)])))
+    print allPosIndex
+
+    keptIndex= np.concatenate((fewerNegIndex,allPosIndex))    
+    X = newData[keptIndex]
+    y = y[keptIndex].T
+
+    data['X'] = X
+    data['y'] = y
+
+    sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+
