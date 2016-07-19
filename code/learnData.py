@@ -309,7 +309,7 @@ def transformLDA(X,y,xTest,yTest, n_components):
     
     originalSize = np.size(X,1)
     print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
-    priors = [0.9,0.1]
+    priors = [0.5,0.5]
 
     clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
     print(X.shape)
@@ -318,17 +318,58 @@ def transformLDA(X,y,xTest,yTest, n_components):
 
     if xTest != []:
         xTest = clf.transform(xTest)
-
     return X,xTest
 
-def learnLDAandLin(xTrain,yTrain,xTest,yTest,scoring, transformedData, jobs):
+def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
+
+    cardExemple, originalCardFeature = X.shape
+    print("Learning Fisher Criterion Using LDA : \nProjecting {} features to {} components".format(originalCardFeature, n_components))
+    priors = [0.5,0.5]
+    selected = []
+
+    treshold = 0.90
+
+    clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
+    print(X.shape)
+    clf.fit(X,y)
+    print("True size of X : ", X.shape)
+
+    coef = np.abs(clf.coef_[0])
+    
+    # Sorting the coef list and keeping the index
+    bestCoef,indexCoef = zip(*sorted(zip(coef,[i for i in range(originalCardFeature)])))
+    bestCoef,indexCoef = list(reversed(bestCoef)), list(reversed(indexCoef))
+    # Easy First Approach : Returning all best coef 
+    #return X[:,bestCoef[:n_components]] #Warning : Can be very correlated
+
+    # Second Method : Selec coef if it is not too correlated to another    
+    selectedFeatures = [indexCoef[0]]
+    currentIndex = 1
+
+    while len(selectedFeatures) != n_components and currentIndex < originalCardFeature-1:
+        prd =  np.array([np.inner(X[:,indexCoef[currentIndex]],X[:,selectedFeatures[i]])/cardExemple for i in range(len(selectedFeatures))])
+
+        
+        if (prd < treshold).all() :
+            print prd
+            print "Coef selected :", indexCoef[currentIndex],"\nRank :", currentIndex
+            selectedFeatures.append(indexCoef[currentIndex])
+        currentIndex +=1
+
+    return X[:,selectedFeatures], xTest[:,selectedFeatures]
+
+def learnLDAandLin(xTrain,yTrain,xTest,yTest,n_components,scoring, transformedData, jobs, fisher):
 
     if np.size(xTest)==0:
         raise NoTestError("A test file is needed for LDA, add '-r 0.7' option when calling mainParams.py")
 
     penalty = 'l2'
-    xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=1)
 
+    if fisher:
+        xTrain,xTest = fisherCriterionFeaturesSelection(xTrain,yTrain,xTest,n_components=n_components)
+    else:
+        xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=n_components)
+        
     print(xTest.shape,xTrain.shape)
     cRange = np.logspace(-5,1,3)
     parameters = {'C': cRange}
@@ -342,7 +383,7 @@ def learnLDAandLin(xTrain,yTrain,xTest,yTest,scoring, transformedData, jobs):
 
     scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
     writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'LDALin', penalty, scoring, transformedData, scores=scores)
-    
+
 
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 

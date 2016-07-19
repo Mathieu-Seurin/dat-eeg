@@ -12,7 +12,7 @@ class ArgumentError(Exception): pass
     
 parser = argparse.ArgumentParser()
 allDataType = ['test','random','r','s','f','fs','p']
-allModelType = ['lin','nonLin','lda']
+allModelType = ['lin','nonLin','lda','fisher']
 
 #=========================  PARAMETERS  ============================
 #===================================================================
@@ -40,7 +40,7 @@ parser.add_argument('-r',"--ratioTrainTest", help="Ratio Train/Test used (defaul
 
 parser.add_argument("--cardPatch", help="Number of Patch you want to extract", type=int, default=10000)
 
-parser.add_argument("--compressFactor", help="Size of features compression (default : 2)", type = int, default=2)
+parser.add_argument("--compressSize", help="Size of features compression (default : 2)", type = int, default=2)
 
 parser.add_argument("--dimReduce", help="Type of dimension reducing (default : PCA)",action="store_true")
 
@@ -130,9 +130,9 @@ if args.transfer:
     print("+Transfer")
 
 if args.dimReduce:
-    compressFactor = args.compressFactor
-    X,xTest = dimensionReducePCA(X,xTest,compressFactor)
-    dataType += "PCA{}".format(compressFactor)
+    compressSize = args.compressSize
+    X,xTest = dimensionReducePCA(X,xTest,compressSize)
+    dataType += "PCA{}".format(compressSize)
 
 dataType += "Balanced"
 print(dataType)
@@ -158,7 +158,11 @@ elif model=='nonLin':
 
 elif model=='lda':
 
-    learnLDAandLin(X, y, xTest, yTest, scoring,transformedData=dataType,jobs=cardJobs)
+    learnLDAandLin(X, y, xTest, yTest, n_components=args.compressSize,scoring=scoring,transformedData=dataType,jobs=cardJobs)
+
+elif model=='fisher':
+
+    learnLDAandLin(X, y,xTest,yTest,n_components=args.compressSize,scoring=scoring,transformedData=dataType,jobs=cardJobs,fisher=True)
 
 elif model == 'elastic' :
 
