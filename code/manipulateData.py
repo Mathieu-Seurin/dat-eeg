@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 #coding: utf-8
 
+
+#Perso
+from constants import *
+
 #Module
 import pickle
 import numpy as np
@@ -11,25 +15,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 
-
 from sklearn.decomposition import PCA
+
+from scipy.linalg import eigh
 
 import os.path
 import time
 
-
-class NotImplementedYet(Exception): pass
-
-#Const
-PATH_TO_DATA = 'Data/'
-PATH_TO_MODEL = 'Models/'
-
-from sklearn import __version__
-SKLEARN_VERSION = float(__version__[-6:])
-print "Sklearn Version :", SKLEARN_VERSION
-
-class NotImplemented(Exception): pass
-
+from mne.decoding import CSP
 #============================== RAW ===========================================
 #==============================================================================
 def reformatRawData(filenameI, filenameO):
@@ -403,7 +396,6 @@ def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTr
 def prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize, splitTrainTest):
     raise NotImplemented("Not Yet, maybe will never be useful")    
 
-
 def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr):
     
     if subject in ('AB','BA'):
@@ -438,7 +430,7 @@ def normalizeData(X,xTest):
 def delTimeStep(X, timeStep, dataType):
 
     if 'stft' in dataType or 'Stft' in dataType :
-        raise NotImplementedYet("To be continued")
+        raise NotImplemented("To be continued")
 
     else:
         numEx = np.size(X,0)
@@ -479,6 +471,31 @@ def delElec(X, elec, dataType):
     X = X[:, mask]
     return X    
 
+
+#========== CONVERT (EXEMPLE,CHANNEL,TIME) <=> (EXEMPLE, FEATURES) ==========
+#============================================================================
+
+def matToVec(X,numElec=64):
+
+    numExemple = np.size(X,0)
+    numStep = np.size(X,2)
+
+    xVec = X.reshape((numExemple,numStep*numElec))
+
+    return xVec
+
+def vecToMat(X,numElec=64):
+
+    print X.shape
+
+    numExemple = np.size(X,0)
+    numStep = np.size(X,1)//numElec
+
+    xMat = X.reshape((numExemple,numElec,numStep))
+    return xMat
+
+#========================= DIMENSION REDUCING ===================
+#================================================================
 def dimensionReducePCA(X,xTest,n_components=100):
 
     print("PCA : reducing {} features".format(np.size(X,1))
@@ -494,6 +511,88 @@ def dimensionReducePCA(X,xTest,n_components=100):
 
     return X,xTest
 
+
+def transformLDA(X,y,xTest):
+    
+    originalSize = np.size(X,1)
+    print("Learning LDA \nProjecting {} features to 1 component".format(originalSize))
+    priors = [0.5,0.5]
+
+    clf = LinearDiscriminantAnalysis('svd', n_components=1,priors=priors)
+    print(X.shape)
+    X = clf.fit_transform(X,y)
+    print("True size of X : ", X.shape)
+
+    if xTest != []:
+        xTest = clf.transform(xTest)
+    return X,xTest
+
+def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
+
+    cardExemple, originalCardFeature = X.shape
+    print("Learning Fisher Criterion custom : \nProjecting {} features to {} components".format(originalCardFeature, n_components))
+    priors = [0.5,0.5]
+
+    approach = 'fast'
+
+    selected = []
+
+    treshold = 0.90
+
+    clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
+    print(X.shape)
+    clf.fit(X,y)
+
+    coef = np.abs(clf.coef_[0])
+
+    # Sorting the coef list and keeping the index
+    bestCoef,indexCoef = zip(*sorted(zip(coef,[i for i in range(originalCardFeature)])))
+    bestCoef,indexCoef = list(reversed(bestCoef)), list(reversed(indexCoef))
+    # Easy First Approach : Returning all best coef 
+
+    print(max(bestCoef),min(bestCoef),np.mean(bestCoef),np.std(bestCoef))
+    
+    if approach=='fast':
+        keptFeatures = indexCoef[:n_components]
+        keptCoef = bestCoef[:n_components]
+        #Warning : Can be very correlated
+        return X[:,keptFeatures], xTest[:,indexCoef[:n_components]]
+
+    # Second Method : Selec coef if it is not too correlated to another    
+    selectedFeatures = [indexCoef[0]]
+    currentIndex = 1
+
+    while len(selectedFeatures) != n_components and currentIndex < originalCardFeature-1:
+        prd =  np.array([np.inner(X[:,indexCoef[currentIndex]],X[:,selectedFeatures[i]])/cardExemple for i in range(len(selectedFeatures))])
+
+        
+        if (prd < treshold).all() :
+            selectedFeatures.append(indexCoef[currentIndex])
+        currentIndex +=1
+
+    return X[:,selectedFeatures], xTest[:,selectedFeatures]
+
+def cspReduce(X,xTest,y,n_components):
+
+    if np.size(xTest)==0:
+        raise NoTestError("A test file is needed for dimension reducing, otherwise, test would be biaised.\nAdd '-r 0.7' option when calling mainParams.py")
+
+
+    #Reformat X for csp function
+    X = vecToMat(X)
+    print X.shape
+    
+    #Apply CSP
+    csp = CSP(n_components=n_components)
+    X = csp.fit_transform(X,y)
+
+
+    xTest = vecToMat(xTest)
+    
+    xTest = csp.transform(xTest)
+        
+    return X,xTest
+    
 #==================Patches Manipulation ===================
 #==========================================================
 def patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr):
@@ -536,7 +635,7 @@ class Patcher(object):
         randFreq = np.random.randint(low=self.freqWidth, high=cardFreq-self.freqWidth, size=1)
         randWin = np.random.randint(low=self.winWidth, high=cardWin-self.winWidth, size=1)
 
-        slices = [slice(randElec-self.elecWidth,randElec+self.elecWidth+1),\
+        slices = [tuple(CLOSEST_ELEC[randElec][:2*self.elecWidth+1]),\
               slice(randFreq-self.freqWidth,randFreq+self.freqWidth+1),\
                    slice(randWin-self.winWidth,randWin+self.winWidth+1)]
 
@@ -571,7 +670,7 @@ class Patcher(object):
         randFreq = np.random.randint(low=self.freqWidth, high=cardFreq-self.freqWidth, size=self.cardPatch)
         randWin = np.random.randint(low=self.winWidth, high=cardWin-self.winWidth, size=self.cardPatch)
 
-        slices = [(slice(randElec[i]-self.elecWidth,randElec[i]+self.elecWidth+1),\
+        slices = [(tuple(CLOSEST_ELEC[randElec[i]][:2*self.elecWidth+1]),\
               slice(randFreq[i]-self.freqWidth,randFreq[i]+self.freqWidth+1),\
               slice(randWin[i]-self.winWidth,randWin[i]+self.winWidth+1)) for i in range(self.cardPatch)]
 
@@ -615,22 +714,29 @@ def savePartOfData(filenameI, filenameO):
     np.save(filenameO, miniData)
     np.save('{}fullY'.format(PATH_TO_DATA), y)
 
+
 def saveBalancedMat(subject):
 
     data = sio.loadmat("{}Subject_{}_Train_reshapedCopy.mat".format(PATH_TO_DATA,subject))
     y = np.array([elem[0] for elem in data['y']])
     X = np.array(data['X'])
 
+    print X.shape
+
     data = {'X':None,'y':None}
     print y[0]
 
-    #TODO MODIFY 160
+    
     numExemple = np.size(X,2)
     newData = np.empty([numExemple, 64*160])
 
     for exemple in range(numExemple):
         newData[exemple, :] = np.concatenate( [X[i,:,exemple] for i in range(64)])
         
+
+    newData = xMatToVec(X)
+
+    #TODO MODIFY 160        
     allNegIndex = np.where(y==-1)[0]
     allPosIndex = np.where(y==1)[0]
     
@@ -650,4 +756,3 @@ def saveBalancedMat(subject):
     data['y'] = y
 
     sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
-

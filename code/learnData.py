@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*
-
 #Perso
 from signalManipulation import *
 from manipulateData import *
-#Also import CONSTANT from manipulateData : PATH_TO_DATA etc ...
 
 #Module
 import pickle
@@ -13,20 +11,15 @@ from sklearn import svm, grid_search
 from sklearn.linear_model import ElasticNetCV, ElasticNet
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, roc_auc_score
 from sklearn.preprocessing import scale
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
 
-from copy import copy
+from sklearn.cross_validation import StratifiedKFold
+
+from copy import copy,deepcopy
 
 import pylab as pl
 
-if SKLEARN_VERSION >= 0.17:
-    CLASS_WEIGHT='balanced'
-else:
-    CLASS_WEIGHT='auto'
-
-
-RESULTS_PATH = 'Results/'
-
-class NoTestError(Exception): pass
 #======================== TOOLS ========================
 #======================================================
 def writeResults(results, best_params, best_score, modelType, penalty, scoreType,\
@@ -95,24 +88,45 @@ def getScores(y, yPredTrain, yTest, yPredTest):
     scores['f1Train'] = f1_score(y, yPredTrain)
     scores['f1Test'] = f1_score(yTest, yPredTest)
 
-    print("F1 :\n Train = {} Test : = {}".format(scores['f1Train'], scores['f1Test']))
 
     scores['accTrain'] = accuracy_score(y, yPredTrain)
     scores['accTest'] = accuracy_score(yTest, yPredTest)
     
-    print("Accuracy :\n Train = {} Test : = {}".format(scores['accTrain'], scores['accTest']))
 
     scores['rocTrain'] = roc_auc_score(y, yPredTrain)
     scores['rocTest'] = roc_auc_score(yTest, yPredTest)
     
-    print("Roc_Auc :\n Train = {} Test : = {}".format(scores['rocTrain'], scores['rocTest']))
 
     scores['cMatrixTrain'] = confusion_matrix(y, yPredTrain)
     scores['cMatrixTest'] = confusion_matrix(yTest, yPredTest)
 
-    print(scores['cMatrixTrain'],'\n',scores['cMatrixTest'])
-
+    proba = float(len(np.where(y==1)[0]))/len(y)
+    if proba < 0.50:
+        proba = 1 - proba
+    scores['random'] = proba
+    
     return scores
+
+def printScores(scores):
+
+    strSave =  "Train :\n"
+    strSave += "Accuracy : {}\n".format(scores['accTrain'])
+    strSave += "Roc_Auc :  {}\n".format(scores['rocTrain'])
+    strSave += "F1 :       {}\n".format(scores['f1Train'])
+    strSave += "{}\n".format(scores['cMatrixTrain'])
+
+    strSave += "Test :\n"
+    strSave += "Accuracy : {}\n".format(scores['accTest'])
+    strSave += "Roc_Auc :  {}\n".format(scores['rocTest'])
+    strSave += "F1 :       {}\n".format(scores['f1Test'])
+    strSave += "{}\n".format(scores['cMatrixTest'])
+
+    strSave += "Random Accuracy : {}".format(scores['random'])
+
+    
+    print strSave
+    return strSave
+
 
 def testModel(best,X,y,xTest,yTest,penalty):
     
@@ -120,6 +134,7 @@ def testModel(best,X,y,xTest,yTest,penalty):
     yPredTrain = best.predict(X)
     yPredTest = best.predict(xTest)
     scores = getScores(y, yPredTrain, yTest, yPredTest)
+    printScores(scores)
 
     if penalty=='l1':
         saveNonZerosCoef(best, 'l1', dataType=transformedData)
@@ -193,7 +208,7 @@ def learnHyperLinear(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=
 
     # Parameters selection
     #====================
-    cRange = np.logspace(-5,2,8)
+    cRange = np.logspace(-5,1,3)
     parameters = {'C': cRange}
 
     if penalty=='l1':
@@ -294,6 +309,7 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
         yPredTest[yPredTest < 0] = -1
 
         scores = getScores(y, yPredTrain, yTest, yPredTest)
+        printScores(scores)
     
     writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
                  'ElasticNet', 'l1l2', scoring, transformedData, scores)
@@ -304,86 +320,6 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
 
     with open('nonZerosParamsRawElasticNet', 'w') as f:
         f.write(str(list(nonZerosParams)))
-
-def transformLDA(X,y,xTest,yTest, n_components):
-    
-    originalSize = np.size(X,1)
-    print("Learning LDA \nProjecting {} features to {} components".format(originalSize, n_components))
-    priors = [0.5,0.5]
-
-    clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
-    print(X.shape)
-    X = clf.fit_transform(X,y)
-    print("True size of X : ", X.shape)
-
-    if xTest != []:
-        xTest = clf.transform(xTest)
-    return X,xTest
-
-def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
-
-    cardExemple, originalCardFeature = X.shape
-    print("Learning Fisher Criterion Using LDA : \nProjecting {} features to {} components".format(originalCardFeature, n_components))
-    priors = [0.5,0.5]
-    selected = []
-
-    treshold = 0.90
-
-    clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
-    print(X.shape)
-    clf.fit(X,y)
-    print("True size of X : ", X.shape)
-
-    coef = np.abs(clf.coef_[0])
-    
-    # Sorting the coef list and keeping the index
-    bestCoef,indexCoef = zip(*sorted(zip(coef,[i for i in range(originalCardFeature)])))
-    bestCoef,indexCoef = list(reversed(bestCoef)), list(reversed(indexCoef))
-    # Easy First Approach : Returning all best coef 
-    #return X[:,bestCoef[:n_components]] #Warning : Can be very correlated
-
-    # Second Method : Selec coef if it is not too correlated to another    
-    selectedFeatures = [indexCoef[0]]
-    currentIndex = 1
-
-    while len(selectedFeatures) != n_components and currentIndex < originalCardFeature-1:
-        prd =  np.array([np.inner(X[:,indexCoef[currentIndex]],X[:,selectedFeatures[i]])/cardExemple for i in range(len(selectedFeatures))])
-
-        
-        if (prd < treshold).all() :
-            print prd
-            print "Coef selected :", indexCoef[currentIndex],"\nRank :", currentIndex
-            selectedFeatures.append(indexCoef[currentIndex])
-        currentIndex +=1
-
-    return X[:,selectedFeatures], xTest[:,selectedFeatures]
-
-def learnLDAandLin(xTrain,yTrain,xTest,yTest,n_components,scoring, transformedData, jobs, fisher):
-
-    if np.size(xTest)==0:
-        raise NoTestError("A test file is needed for LDA, add '-r 0.7' option when calling mainParams.py")
-
-    penalty = 'l2'
-
-    if fisher:
-        xTrain,xTest = fisherCriterionFeaturesSelection(xTrain,yTrain,xTest,n_components=n_components)
-    else:
-        xTrain,xTest = transformLDA(xTrain,yTrain,xTest,yTest,n_components=n_components)
-        
-    print(xTest.shape,xTrain.shape)
-    cRange = np.logspace(-5,1,3)
-    parameters = {'C': cRange}
-
-    print(xTrain.shape)
-
-    classif = svm.LinearSVC(penalty=penalty, class_weight=CLASS_WEIGHT)
-    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3)
-    print("Begin\n...")
-    clf.fit(xTrain,yTrain)
-
-    scores = testModel(clf.best_estimator_,xTrain,yTrain,xTest,yTest,penalty)
-    writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'LDALin', penalty, scoring, transformedData, scores=scores)
-
 
 def learnStep(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1):
 
@@ -535,3 +471,117 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
 
         with open("selecStep.txt",'a') as f:
             f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))
+
+
+def learnRandomForest(X,y,xTest,yTest,scoring, jobs):
+
+    params = {
+        'n_estimators':[2,10,100],
+        'max_features':['auto',2,10],
+        'max_depth':[10,40,2],
+        'min_samples_split':[2,10,20,50]
+    }
+    
+    forest = RandomForestClassifier()
+
+    grd = grid_search.GridSearchCV(forest,params, scoring=scoring,cv=3,n_jobs=jobs,verbose=3)
+    grd.fit(X,y)
+
+    yPredTrain = grd.predict(X)
+    yPredTest = grd.predict(xTest)
+
+    print "FOREST : \n"
+    scores = getScores(y, yPredTrain, yTest, yPredTest)
+    printScores(scores)
+
+def learnLinCspBiaised(X, y, xTest, yTest, scoring, transformedData,jobs=1):
+
+    xCopy = copy(X)
+    xTestCopy = copy(xTest)
+
+    best_score = 0
+    best_compo = None
+
+    strSave = ""
+    
+    for n_components in [1,2,5,10,20,30]:
+
+        X,xTest = cspReduce(X, xTest, y, n_components)
+        print X.shape
+
+        cRange = np.logspace(-5,1,3)
+        parameters = {'C':cRange}
+
+        #Creating Model and begin classification
+        #=======================================
+        classif = svm.LinearSVC(penalty='l2', class_weight=CLASS_WEIGHT,  dual=True)
+        clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=1, refit=True)
+        print("Begin\n...")
+        clf.fit(X,y)
+
+        #Get results, print and write them into a file
+        #============================================
+        print(n_components, clf.best_score_)
+        strSave += "Number of components {} {}\n".format(n_components, clf.best_score_)
+
+        if clf.best_score_ > best_score:
+            best_score = clf.best_score_
+            best_compo = n_components
+
+            print "Number of components : ", best_compo, best_score 
+
+        X = deepcopy(xCopy)
+        xTest = deepcopy(xTestCopy)
+
+
+    X,xTest = cspReduce(X, xTest, y, best_compo)
+
+    c = clf.best_params_['C']
+
+    classif = svm.LinearSVC(C=c, penalty='l2', class_weight=CLASS_WEIGHT,  dual=True)
+    classif.fit(X,y)
+
+    yPredTrain = classif.predict(X)
+    yPredTest = classif.predict(xTest)
+
+
+    scores =  getScores(y, yPredTrain, yTest, yPredTest)
+    strSave += printScores(scores)
+        
+    f = open("{}{}HyperSelection{}{}{}.txt".format(RESULTS_PATH, 'l2', 'CspLin', scoring.title(), transformedData.title()), 'w')
+    f.write(strSave)
+    f.close()
+
+
+def learnLinCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1):
+
+    X = vecToMat(X)
+    xTest = vecToMat(xTest)
+
+    csp = CSP()
+    svmLin = svm.LinearSVC(penalty='l2',class_weight=CLASS_WEIGHT)
+    pipe = Pipeline(steps = [('csp',csp),('lin',svmLin)])
+
+    n_components = [1,2,5,10,20,30,40,50]
+    C = np.logspace(-5,1,3)
+
+    grd = grid_search.GridSearchCV(pipe,dict(csp__n_components=n_components, lin__C=C),\
+                       cv=10, verbose=3)
+    grd.fit(X,y)
+
+    print grd.best_params_
+
+    yPredTrain = grd.predict(X)
+    yPredTest = grd.predict(xTest)
+
+
+    scores =  getScores(y, yPredTrain, yTest, yPredTest)
+    printScores(scores)
+    
+
+    
+    
+
+
+
+

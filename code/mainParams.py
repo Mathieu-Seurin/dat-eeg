@@ -12,7 +12,7 @@ class ArgumentError(Exception): pass
     
 parser = argparse.ArgumentParser()
 allDataType = ['test','random','r','s','f','fs','p']
-allModelType = ['lin','nonLin','lda','fisher']
+allModelType = ['lin','nonLin','forest','csp', 'pipe']
 
 #=========================  PARAMETERS  ============================
 #===================================================================
@@ -22,7 +22,7 @@ parser.add_argument("data", help="Type of Data you want to learn/transform",choi
 parser.add_argument("model", help="Type of Model you want to use",choices=allModelType)
 
 #Optionnal Argument
-parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','AB','BA'], default='A')
+parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','AB','BA','C'], default='A')
 
 parser.add_argument("-j","--jobs",help="Number of jobs used to learn the data", type=int, default=1)
 
@@ -42,7 +42,7 @@ parser.add_argument("--cardPatch", help="Number of Patch you want to extract", t
 
 parser.add_argument("--compressSize", help="Size of features compression (default : 2)", type = int, default=2)
 
-parser.add_argument("--dimReduce", help="Type of dimension reducing (default : PCA)",action="store_true")
+parser.add_argument("--dimReduce", help="Type of dimension reducing", choices=['fisher','lda','pca'])
 
 parser.add_argument("--operationStr", help="Type of operation to apply to patches",default='mean')
 parser.add_argument("--outputFormat", help="type of output for stft matrix file (default : npy)", default="npy", choices=['npy','mat'])
@@ -68,15 +68,16 @@ if data == 'test':
     y = np.array([1 for j in range(50)])
     y = np.concatenate((y,-y))
 
-    xTest = []
-    yTest = []
+    xTest = X[10:,:]
+    yTest = y[10:]
 
 elif data == 'random':
     y = np.load(PATH_TO_DATA+'AfullY.npy')
     X = np.random.random((np.size(y),args.cardRandom))
 
-    xTest = []
-    yTest = []
+    xTest = X[:10]
+    yTest = y[:10]
+    
     dataType = 'random'
 
 elif data == 'r':
@@ -129,11 +130,6 @@ if args.transfer:
 
     print("+Transfer")
 
-if args.dimReduce:
-    compressSize = args.compressSize
-    X,xTest = dimensionReducePCA(X,xTest,compressSize)
-    dataType += "PCA{}".format(compressSize)
-
 dataType += "Balanced"
 print(dataType)
 
@@ -141,6 +137,28 @@ print(dataType)
 #=================================================================
 X,xTest = normalizeData(X,xTest)
 
+if args.dimReduce:
+
+    if np.size(xTest)==0:
+        raise NoTestError("A test file is needed for dimension reducing, otherwise, test would be biaised.\nAdd '-r 0.7' option when calling mainParams.py")
+
+    
+    if args.dimReduce == 'fisher':
+        compressSize = args.compressSize
+        X,xTest = fisherCriterionFeaturesSelection(X,y,xTest,compressSize)
+        dataType += "fisher{}".format(compressSize)
+
+    elif args.dimReduce == 'lda':
+        compressSize = args.compressSize
+        X,xTest = transformLDA(X,y,xTest)
+        dataType += "lda{}".format(compressSize)
+
+    if args.dimReduce == 'pca':
+        compressSize = args.compressSize
+        X,xTest = fisherCriterionFeaturesSelection(X,y,xTest,compressSize)
+        dataType += "lda{}".format(compressSize)
+
+        
 #====================================================================
 #=========================  MODEL  ==================================
 #====================================================================
@@ -156,26 +174,21 @@ elif model=='nonLin':
     
     learnHyperNonLinear(X, y, xTest, yTest, scoring,transformedData=dataType,jobs=cardJobs)
 
-elif model=='lda':
-
-    learnLDAandLin(X, y, xTest, yTest, n_components=args.compressSize,scoring=scoring,transformedData=dataType,jobs=cardJobs)
-
-elif model=='fisher':
-
-    learnLDAandLin(X, y,xTest,yTest,n_components=args.compressSize,scoring=scoring,transformedData=dataType,jobs=cardJobs,fisher=True)
-
 elif model == 'elastic' :
 
     learnElasticNet(X,y,xTest,yTest, scoring, transformedData=dataType, jobs=cardJobs)
     
-elif model=='single':
-    
-    clf = svm.LinearSVC(C=1e-5, class_weight='balanced')
-    clf.fit(X,y)
-    yPredTrain = clf.predict(X)
-    yPredTest = clf.predict(xTest)
+elif model == 'forest' :
 
-    scores = getScores(y, yPredTrain, yTest, yPredTest)
+    learnRandomForest(X,y,xTest,yTest,scoring,jobs=cardJobs)
+    
+elif model=='csp':
+
+    learnLinCspBiaised(X,y,xTest,yTest,scoring,transformedData=dataType,jobs=cardJobs)
+
+elif model == 'pipe':
+
+    learnLinCspPipeline(X,y,xTest,yTest,scoring,transformedData=dataType,jobs=cardJobs)
 
 elif model == 'allS':
 

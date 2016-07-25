@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+#Perso
+from constants import *
+
 from scipy.fftpack import fft, fftshift, fftfreq
 from scipy.signal import butter, lfilter, decimate
 
@@ -11,8 +14,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #from wavelets import WaveletAnalysis
-
-PATH_TO_DATA='Data/'
 
 class SignalHandler(object):
     """

@@ -29,8 +29,8 @@ if sys.argv[1] == 'sin':
 
 elif sys.argv[1] == 'mean':
 
-    decimation = 1
-    X, y, _, _ = prepareFiltered('A',0.5,60,decimation)
+    decimation = 4
+    X, y, _, _ = prepareFiltered('A',0.5,30,decimation)
 
     lenSig = np.size(X,1)/64
     fs = 240//decimation
@@ -40,7 +40,7 @@ elif sys.argv[1] == 'mean':
     p300 = np.where(y==1)[0][:50]
     nonp300 = np.where(y==-1)[0][:5]
 
-    for numElec in [11,47,48,49,50]:
+    for numElec in [11,47]:
 
         elec = slice(lenSig*numElec,lenSig*numElec+lenSig)
         print(elec)
@@ -180,6 +180,53 @@ elif sys.argv[1] == 'wavelets':
         ax.contourf(T, S, power, 100)
         print(S)
     
+
+elif sys.argv[1] == 'meanS':
+
+    decimation = 4
+    X, y, _, _ = prepareFiltered('A',0.5,30,decimation)
+
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+
+    lenSig = np.size(X,1)/64
+    fs = 240//decimation
+
+    frameSize = 0.2
+
+    p300 = np.where(y==1)[0][:50]
+    nonp300 = np.where(y==-1)[0][:5]
+
+    for numElec in [11,47]:
+
+        elec = slice(lenSig*numElec,lenSig*numElec+lenSig)
+        print(elec)
+
+        signal = X[p300[0],elec]
+        mySig = SignalHandler(signal, fs)
+        mySig.multipleStftPlot(frameSize=frameSize)
+        plt.title("Single{}".format(numElec))
+        plt.show()
+
+        
+        xP300 = X[p300,elec]
+        print("P300",xP300.shape)
+        mySig = SignalHandler(xP300.mean(axis=0), fs)
+        mySig.multipleStftPlot(frameSize=frameSize)
+        plt.title("Mean P{}".format(numElec))
+        plt.show()
+
+
+        xNonP300 = X[nonp300,elec]
+        print("NonP300",xNonP300.shape)
+        mySig = SignalHandler(-xNonP300.mean(axis=0), fs)
+        mySig.multipleStftPlot(frameSize=frameSize)
+        plt.title("Mean non P{}".format(numElec))
+        plt.show()
+
+
+
 elif sys.argv[1] == 'patch':
     pass
 
