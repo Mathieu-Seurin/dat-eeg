@@ -55,7 +55,10 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
         if subject== 'Z':
             cardElec = 32
             fs = 2048
-        else :
+        elif subject in ('1','2','3','4','5'):
+            cardElec = 64
+            fs = 512
+        else:
             cardElec = 64
             fs = 240
     else:
@@ -940,4 +943,3 @@ def saveDisabledDataBase(subject):
     data['y'] = wholeY
 
     sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
-

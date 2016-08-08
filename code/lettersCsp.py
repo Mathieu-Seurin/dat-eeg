@@ -8,11 +8,11 @@ def concatenateAllSubjects():
 
     for i in range(2,6):
         X2, y2, _, _ = prepareFiltered(str(i),freqMin,freqMax,decimation)
+
+        print X2.shape
         X = np.concatenate((X,X2))
         y = np.concatenate((y,y2))
 
-    print X.shape
-    print y.shape
     return X,y
 
 
@@ -60,5 +60,4 @@ def lettersCompWithoutCsp(X,y):
 
     np.save('lettersComparisonWithoutCsp', results)
 
-X = np.load('lettersComparisonWithoutCsp.npy')
-print np.max(X)
+X,y = concatenateAllSubjects()
