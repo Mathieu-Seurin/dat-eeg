@@ -38,9 +38,9 @@ elif sys.argv[1] == 'mean':
     frameSize = 0.2
 
     p300 = np.where(y==1)[0][:50]
-    nonp300 = np.where(y==-1)[0][:5]
+    nonp300 = np.where(y==-1)[0][:50]
 
-    for numElec in [11,47]:
+    for numElec in [11,31,47]:
 
         elec = slice(lenSig*numElec,lenSig*numElec+lenSig)
         print(elec)
@@ -67,46 +67,6 @@ elif sys.argv[1] == 'mean':
         plt.title("Mean non P{}".format(numElec))
         plt.show()
 
-elif sys.argv[1] == 'coherence':
-
-    freqMin = 5
-    freqMax = 50
-    decimation = 1
-
-    X, y, _, _ = prepareFiltered('A',freqMin,freqMax,decimation)
-
-    lenSig = np.size(X,1)/64
-    fs = 240//decimation
-
-    cardSig = 5
-    numElec = 11
-    elec = slice(lenSig*numElec,lenSig*numElec+lenSig)
-
-    frameSize = 0.2
-
-    p300 = np.where(y==1)[0]
-    nonp300 = np.where(y==-1)[0][:cardSig]
-
-    sigMean = X[p300[0],elec]
-    
-    for numSig in range(cardSig):
-        f,Cxy = signal.csd(sigMean,X[nonp300[numSig],elec],fs=fs,nperseg=lenSig)
-
-        plt.plot(f, Cxy)
-        plt.xlabel('frequency [Hz]')
-        plt.ylabel('Coherence')
-        plt.show()
-    
-    sigMean = X[nonp300[1],elec]
-    
-    for numSig in range(cardSig):
-        f,Cxy = signal.csd(sigMean,X[nonp300[numSig],elec],fs=fs,nperseg=lenSig)
-
-        plt.plot(f, Cxy)
-        plt.xlabel('frequency [Hz]')
-        plt.ylabel('Coherence')
-        plt.show()
-    
 
 elif sys.argv[1] == 'filter':
 
@@ -225,11 +185,106 @@ elif sys.argv[1] == 'meanS':
         plt.title("Mean non P{}".format(numElec))
         plt.show()
 
+elif sys.argv[1] == 'filterDiff':
+        
+    decimation = 4
+    fmax = 30
+    fmin = 0.5
+
+    # A, yA, _, _ = prepareRaw('A') #Sujet A
+    # C, yC, _, _ = prepareRaw('C') #Jouet 
+    # Z, yZ, _, _ = prepareRaw('Z') #Free P300
+    # five, yFive, _, _ = prepareRaw('5') #Marseille Sujet 5
+    
+    subjects = ('A','C','Z','5')
+    numSubjecs = 4
+    #scaler = StandardScaler()
+    #X = scaler.fit_transform(X)
+
+    for i in range(numSubjecs):
+        X, y, _, _ = prepareRaw(subjects[i])
+
+        if i==2:
+            print "here"
+            print X.shape
+            print y
+            cardElec = 32
+            fs = 2048
+        else:
+            cardElec = 64
+            fs = 240
+
+        lenSig = np.size(X,1)/cardElec
+        frameSize = 0.2
+
+        if i==3:
+            p300 = np.where(y==15)[0][:50]
+            nonp300 = np.where(y==23)[0][:50]
+
+        else:
+            p300 = np.where(y==1)[0][:15]
+            nonp300 = np.where(y==-1)[0][:50]
 
 
-elif sys.argv[1] == 'patch':
-    pass
+        for numElec in [11]:
+
+            elec = slice(lenSig*numElec,lenSig*numElec+lenSig)
+
+            oneP300 = X[p300[0],elec]
+            meanP300 = X[p300,elec].mean(axis=0)
+            meanNonP300 = X[nonp300,elec].mean(axis=0)
+
+            print meanNonP300.shape
+            print meanP300.shape
+            print X[p300,elec].shape
 
 
-plt.show()
+
+            #Normal ==================================
+            plt.subplot(3,3,1)
+            signal = SignalHandler(oneP300,fs)
+            signal.plot()
+
+            plt.subplot(3,3,2)
+            signal = SignalHandler(meanP300,fs)
+            signal.plot()
+
+            plt.subplot(3,3,3)
+            signal = SignalHandler(meanNonP300,fs)
+            signal.plot()
+
+            #filtfilt ====================================
+            plt.subplot(3,3,4)
+            signal= SignalHandler(oneP300, fs)
+            signal.filterSig(4,fmin,fmax,decimation)
+            signal.plot()
+
+            plt.subplot(3,3,5)
+            signal = SignalHandler(meanP300,fs)
+            signal.filterSig(4,fmin,fmax,decimation)
+            signal.plot()
+
+            plt.subplot(3,3,6)
+            signal = SignalHandler(meanNonP300,fs)
+            signal.filterSig(4,fmin,fmax,decimation)
+            signal.plot()
+
+            #lfilt ===============================
+            plt.subplot(3,3,7)
+            signal= SignalHandler(oneP300, fs)
+            signal.filterSig(4,fmin,fmax,decimation,'lfilter')
+            signal.plot()
+
+            plt.subplot(3,3,8)
+            signal = SignalHandler(meanP300,fs)
+            signal.filterSig(4,fmin,fmax,decimation,'lfilter')
+            signal.plot()
+
+            plt.subplot(3,3,9)
+            signal = SignalHandler(meanNonP300,fs)
+            signal.filterSig(4,fmin,fmax,decimation,'lfilter')
+            signal.plot()
+
+            plt.title(subjects[i])
+            plt.show()
 

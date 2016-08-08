@@ -8,7 +8,7 @@ from manipulateData import *
 import pickle
 
 from sklearn import svm, grid_search
-from sklearn.linear_model import ElasticNetCV, ElasticNet
+from sklearn.linear_model import ElasticNetCV, ElasticNet, RidgeClassifier
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score, roc_auc_score
 from sklearn.preprocessing import scale
 from sklearn.ensemble import RandomForestClassifier
@@ -57,6 +57,17 @@ def writeResults(results, best_params, best_score, modelType, penalty, scoreType
         for model in results:
             print(model)
             strScores += "{:.4} {} {} {}\n".format(model[0]['alpha'], model[0]['l1_ratio'], model[1], np.std(model[2]))
+
+    elif modelType=='Pipe':
+        for model in results:
+            print(model)
+            strScores += "{} {:.4} {} {}\n".format(model[0]['csp__n_components'], model[0]['lin__C'], model[1], np.std(model[2]))
+
+    elif modelType=='Ridge':
+        for model in results:
+            print(model)
+            strScores += "{:.4} {} {}\n".format(model[0]['alpha'], model[1], np.std(model[2]))
+         
     else: #Linear, C is the only parameter
         for model in results:
             print(model)
@@ -72,7 +83,7 @@ def writeResults(results, best_params, best_score, modelType, penalty, scoreType
         strScores += "Accuracy Train : {}  Accuracy Test : {} \n".format(scores['accTrain'], scores['accTest'])
         strScores += "F1 Train : {}  F1 Test : {} \n".format(scores['f1Train'],\
                                                              scores['f1Test'])
-        strScores += "Roc_Auc Train : {}  Roc_Auc Test : {} \n".format(scores['rocTrain'],                                                                       scores['rocTest'])
+        strScores += "Roc_Auc Train : {}  Roc_Auc Test : {} \n".format(scores['rocTrain'],scores['rocTest'])
     else:
         print("No Test file")
         strScores += "\nNo Test file\n=========\n"
@@ -276,6 +287,105 @@ def learnHyperNonLinear(X, y, xTest, yTest, scoring, transformedData,jobs=1):
         writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,\
         'NonLinear', 'l2', scoring, transformedData, scores=None)
 
+def learnRidge(X,y,xTest,yTest,scoring, transformedData, jobs):
+    """
+    Grid Search over a set of parameters for linear model
+    """
+    #Check if test is empty, if it is, don't refit and predict data
+    testAvailable = np.size(xTest,0)!=0
+
+    # Parameters selection
+    #====================
+    alpha = np.logspace(-3,3,6)
+    parameters = {'alpha': alpha}
+
+    #Creating Model and begin classification
+    #=======================================
+    classif = RidgeClassifier(class_weight=CLASS_WEIGHT)
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3, refit=testAvailable)
+    print("Begin\n...")
+    clf.fit(X,y)
+
+    #Get results, print and write them into a file
+    #============================================
+    print(clf.best_params_, clf.best_score_)
+
+    if testAvailable:
+        scores = testModel(clf.best_estimator_,X,y,xTest,yTest,'l2')
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'Ridge',\
+                     'l2',scoring, transformedData, scores=scores)
+    else:
+        print("No test, don't predict data")
+        writeResults(clf.grid_scores_, clf.best_params_, clf.best_score_,'Ridge',\
+                     'l2',scoring, transformedData, scores=None)
+    
+
+def learnRandomForest(X,y,xTest,yTest,scoring, jobs):
+
+    params = {
+        'n_estimators':[2,10,100],
+        'max_features':['auto',2,10],
+        'max_depth':[10,40,2],
+        'min_samples_split':[2,10,20,50]
+    }
+    
+    forest = RandomForestClassifier()
+
+    grd = grid_search.GridSearchCV(forest,params, scoring=scoring,cv=3,n_jobs=jobs,verbose=3)
+    grd.fit(X,y)
+
+    yPredTrain = grd.predict(X)
+    yPredTest = grd.predict(xTest)
+
+    print "FOREST : \n"
+    scores = getScores(y, yPredTrain, yTest, yPredTest)
+    printScores(scores)
+
+
+def learnCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1, classifier='lin'):
+
+    testAvailable = np.size(xTest)
+    
+#    X = vecToMat(X)
+
+    if testAvailable:
+        xTest = vecToMat(xTest)
+
+    if classifier=='lin':
+        classif = svm.LinearSVC(penalty='l2',class_weight=CLASS_WEIGHT)
+        params = np.logspace(-5,1,3)
+        hyper = 'classif__C'
+
+    else:
+        classif = RidgeClassifier(class_weight=CLASS_WEIGHT)
+        params = np.logspace(-2,3,10)
+        hyper = 'classif__alpha'
+
+    csp = CSP(reg='ledoit_wolf',log=False)
+    scaler = StandardScaler()
+#    pipe = Pipeline(steps = [('csp',csp), ('scale',scaler), ('classif',classif)])
+    pipe = Pipeline(steps = [('scale',scaler), ('classif',classif)])
+
+    n_components = [1,2,5,10,20,30,40,50]
+#    dico = {'csp__n_components':n_components, hyper:params}
+    dico = {hyper:params}
+
+    grd = grid_search.GridSearchCV(pipe,dico, cv=5, verbose=0)
+    grd.fit(X,y)
+
+#    return grd.best_score_, grd.best_params_['csp__n_components']
+    return grd.best_score_
+
+    
+    # if testAvailable:
+    #     scores = testModel(grd.best_estimator_,X,y,xTest,yTest,'l2')
+    #     writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=scores)
+
+    # else:
+    #     print("No test, don't predict data")    
+    #     writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=None)
+
+
                 
 def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
 
@@ -472,115 +582,6 @@ def learnElecFaster(X, y, xTest, yTest, penalty, scoring, transformedData,jobs=1
         with open("selecStep.txt",'a') as f:
             f.write("{} : {} with elec {}, numFailed : {}\n".format(numIter, scores[worstElec], removedElec, numFailed))
 
-
-def learnRandomForest(X,y,xTest,yTest,scoring, jobs):
-
-    params = {
-        'n_estimators':[2,10,100],
-        'max_features':['auto',2,10],
-        'max_depth':[10,40,2],
-        'min_samples_split':[2,10,20,50]
-    }
-    
-    forest = RandomForestClassifier()
-
-    grd = grid_search.GridSearchCV(forest,params, scoring=scoring,cv=3,n_jobs=jobs,verbose=3)
-    grd.fit(X,y)
-
-    yPredTrain = grd.predict(X)
-    yPredTest = grd.predict(xTest)
-
-    print "FOREST : \n"
-    scores = getScores(y, yPredTrain, yTest, yPredTest)
-    printScores(scores)
-
-def learnLinCspBiaised(X, y, xTest, yTest, scoring, transformedData,jobs=1):
-
-    xCopy = copy(X)
-    xTestCopy = copy(xTest)
-
-    best_score = 0
-    best_compo = None
-
-    strSave = ""
-    
-    for n_components in [1,2,5,10,20,30]:
-
-        X,xTest = cspReduce(X, xTest, y, n_components)
-        print X.shape
-
-        cRange = np.logspace(-5,1,3)
-        parameters = {'C':cRange}
-
-        #Creating Model and begin classification
-        #=======================================
-        classif = svm.LinearSVC(penalty='l2', class_weight=CLASS_WEIGHT,  dual=True)
-        clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=1, refit=True)
-        print("Begin\n...")
-        clf.fit(X,y)
-
-        #Get results, print and write them into a file
-        #============================================
-        print(n_components, clf.best_score_)
-        strSave += "Number of components {} {}\n".format(n_components, clf.best_score_)
-
-        if clf.best_score_ > best_score:
-            best_score = clf.best_score_
-            best_compo = n_components
-
-            print "Number of components : ", best_compo, best_score 
-
-        X = deepcopy(xCopy)
-        xTest = deepcopy(xTestCopy)
-
-
-    X,xTest = cspReduce(X, xTest, y, best_compo)
-
-    c = clf.best_params_['C']
-
-    classif = svm.LinearSVC(C=c, penalty='l2', class_weight=CLASS_WEIGHT,  dual=True)
-    classif.fit(X,y)
-
-    yPredTrain = classif.predict(X)
-    yPredTest = classif.predict(xTest)
-
-
-    scores =  getScores(y, yPredTrain, yTest, yPredTest)
-    strSave += printScores(scores)
-        
-    f = open("{}{}HyperSelection{}{}{}.txt".format(RESULTS_PATH, 'l2', 'CspLin', scoring.title(), transformedData.title()), 'w')
-    f.write(strSave)
-    f.close()
-
-
-def learnLinCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1):
-
-    X = vecToMat(X)
-    xTest = vecToMat(xTest)
-
-    csp = CSP()
-    svmLin = svm.LinearSVC(penalty='l2',class_weight=CLASS_WEIGHT)
-    pipe = Pipeline(steps = [('csp',csp),('lin',svmLin)])
-
-    n_components = [1,2,5,10,20,30,40,50]
-    C = np.logspace(-5,1,3)
-
-    grd = grid_search.GridSearchCV(pipe,dict(csp__n_components=n_components, lin__C=C),\
-                       cv=10, verbose=3)
-    grd.fit(X,y)
-
-    print grd.best_params_
-
-    yPredTrain = grd.predict(X)
-    yPredTest = grd.predict(xTest)
-
-
-    scores =  getScores(y, yPredTrain, yTest, yPredTest)
-    printScores(scores)
-    
-
-    
-    
 
 
 

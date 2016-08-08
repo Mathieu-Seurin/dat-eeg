@@ -4,20 +4,21 @@
 
 #Perso
 from constants import *
+from signalManipulation import *
 
 #Module
 import pickle
 import numpy as np
-import scipy.io as sio
-from scipy.sparse import lil_matrix
-from signalManipulation import *
-from sklearn.preprocessing import StandardScaler
-from sklearn.cross_validation import StratifiedKFold
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 
+#Sklearn
+from sklearn.preprocessing import StandardScaler, Normalizer
+from sklearn.cross_validation import StratifiedKFold
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.decomposition import PCA
 
-from scipy.linalg import eigh
+#Scipy
+import scipy.io as sio
+from scipy.stats.mstats import winsorize
 
 import os.path
 import time
@@ -44,11 +45,19 @@ def reformatRawData(filenameI, filenameO):
     np.save('{}{}fullY'.format(PATH_TO_DATA, filenameO[0]), y)
     np.save('{}{}'.format(PATH_TO_DATA, filenameO), X)
 
+
 def filterRawData(filenameI, freqInf, freqSup, decimation):
 
     if filenameI[1:5] == 'full':
         subject = filenameI[0]
         print("Subject : ",subject)
+
+        if subject== 'Z':
+            cardElec = 32
+            fs = 2048
+        else :
+            cardElec = 64
+            fs = 240
     else:
         print(filenameI)
         raise NotImplemented("Can't use this format at the moment")
@@ -61,24 +70,25 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
     
     print("Filter Data : File doesn't exist, creating ...")
 
+    order = 4
 
     data = np.load(PATH_TO_DATA+filenameI)
     numExemple = np.size(data,0)
     
-    numPoints = np.size(data,1)//64
+    numPoints = np.size(data,1)//cardElec
     print('Number of Points per signal : ',numPoints)
 
-    currentSignal = SignalHandler(data[0,:numPoints], 240)
+    currentSignal = SignalHandler(data[0,:numPoints], fs)
     
-    sizeOfNewSignal = np.size(currentSignal.filterSig(6,freqInf,freqSup,decimation),0)
+    sizeOfNewSignal = np.size(currentSignal.filterSig(order,freqInf,freqSup,decimation),0)
     print('Size of new signal : ', sizeOfNewSignal)
 
-    newData = np.empty((numExemple, 64*sizeOfNewSignal))
+    newData = np.empty((numExemple, cardElec*sizeOfNewSignal))
 
     for ex, x in enumerate(data):
         for numSignal, i in enumerate(range(0,len(x), numPoints)):
             currentSignal.mainSignal = x[i:i+numPoints]
-            signalFiltered = currentSignal.filterSig(6,freqInf,freqSup,decimation)
+            signalFiltered = currentSignal.filterSig(order,freqInf,freqSup,decimation)
 
             indexBegin = numSignal*sizeOfNewSignal
             indexEnd = (numSignal+1)*sizeOfNewSignal
@@ -107,6 +117,12 @@ def reformatStftData(filenameI, dataType, fs, frameSize=0.2):
     if filenameI[1:5] == 'full':
         subject = filenameI[0]
         print("Subject : ",subject)
+
+        if subject== 'Z':
+            cardElec = 32
+        else :
+            cardElec = 64
+
     else:
         print(filenameI)
         raise NotImplemented("Can't use this format at the moment")
@@ -121,7 +137,7 @@ def reformatStftData(filenameI, dataType, fs, frameSize=0.2):
     data = np.load(PATH_TO_DATA+filenameI)
     numExemple = np.size(data,0)
 
-    numPoints = np.size(data,1)//64
+    numPoints = np.size(data,1)//cardElec
     print('Number of Points per signal : ',numPoints)
 
     #============================================
@@ -141,9 +157,9 @@ def reformatStftData(filenameI, dataType, fs, frameSize=0.2):
     print("""Size of the new signal representation : 
 {} frequencies x {} windows = {}""".format(numFreqs ,numWindows, sizeOfNewSignal))
     
-    newData = np.empty((numExemple, 64*sizeOfNewSignal))
+    newData = np.empty((numExemple, cardElec*sizeOfNewSignal))
     for ex, x in enumerate(data):
-        #Since data is a concatenation of 64 electrode, you have to separate them
+        #Since data is a concatenation of cardElec electrode, you have to separate them
         for numSignal, i in enumerate(range(0,len(x),numPoints)):
             signalStft = SignalHandler(x[i:i+numPoints],fs).stft(frameSize)
             #Stft signal is a matrix [freqs x time] we need to vectorize it
@@ -169,7 +185,7 @@ def reformatStftDataMatrix(filenameI, dataType, fs, frameSize=0.2,numElec=64, ou
 
     filenameI is a string, refering to data in '.npy' format.
 
-    dataType can be either 'raw' or 'filteredXX' with XX the order of filtering
+    dataType can be either 'raw' or 'filteredXX' with XX the order of decimation
 
     fs is the sampling frequencies : Raw signal for the p300 task is sampled at 240Hz
 
@@ -293,25 +309,24 @@ def loadSplitted():
 
     return X,y,xTest,yTest
 
-def splitXY(fileX, fileY,split=0.70):
+def splitXY(fileX, fileY,split=0.80):
 
     X = np.load(PATH_TO_DATA+fileX)
     y = np.load(PATH_TO_DATA+fileY)
 
     if split==0:
         return X,y,np.array([]),np.array([])
-    
-    numExemples = np.size(X,0)
-    print("""Splitting Data : \n Train : {:3.0f}%   Test : {:3.0f}%
-    Total : {} Train : {:10.0f} Test : {:3.0f}""".format(split*100, (1-split)*100, numExemples, \
-                                              numExemples*split, numExemples*(1-split))) 
 
-    randSelection = np.random.sample(np.size(X,0))
-    trainIndex = np.where(randSelection < split)
-    testIndex = np.where(randSelection >= split)
-    
-    saveSplitted(X[trainIndex], y[trainIndex], X[testIndex], y[testIndex])
-    return X[trainIndex], y[trainIndex], X[testIndex], y[testIndex]
+    skf = StratifiedKFold(y,5,True)
+
+    for trainIndex, testIndex in skf:
+
+        numExemples = np.size(X,0)
+        print("""Splitting Data : \n Train : 80%   Test : 20%
+        Total : {} Train : {:10.0f} Test : {:3.0f}""".format(numExemples, numExemples*split, numExemples*(1-split))) 
+
+        saveSplitted(X[trainIndex], y[trainIndex], X[testIndex], y[testIndex])
+        return X[trainIndex], y[trainIndex], X[testIndex], y[testIndex]
 
 def concatAB(fileXA, fileYA, fileXB, fileYB, dataType):
 
@@ -383,12 +398,17 @@ def prepareFilteredStft(subject, freqMin, freqMax, decimation,frameSize, splitTr
     if subject in ('AB', 'BA'):
         prepareFilteredStftAB(freqMin, freqMax, decimation,frameSize,splitTrainTest)
 
+    elif subject in ('Y','Z'):
+        fs = 2048
+    else:
+        fs = 240
+
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject) )
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     reformatStftData(
         "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
-        'Filtered{}'.format(decimation), 240//decimation, frameSize) 
+        'Filtered{}'.format(decimation), fs//decimation, frameSize) 
 
     return splitXY("{}fullFiltered{}Stft{}X.npy".format(subject, decimation, frameSize),\
                    "{}fullY.npy".format(subject), splitTrainTest)
@@ -400,13 +420,18 @@ def preparePatch(subject, freqMin, freqMax, decimation,frameSize,cardPatch,split
     
     if subject in ('AB','BA'):
         preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat)
+    elif subject in ('Y','Z'):
+        fs = 2048
+    else:
+        fs = 240
+
 
     reformatRawData("Subject_{}_Train_reshaped.mat".format(subject) ,"{}fullRawX".format(subject))
     filterRawData("{}fullRawX.npy".format(subject), freqMin, freqMax, decimation)
 
     reformatStftDataMatrix(
         "{}fullFiltered{}_{}_{}X.npy".format(subject, freqMin, freqMax, decimation),
-        'Filtered{}_{}_{}'.format(freqMin,freqMax,decimation), 240//decimation, frameSize=frameSize, outputFormat=outputFormat)
+        'Filtered{}_{}_{}'.format(freqMin,freqMax,decimation), fs//decimation, frameSize=frameSize, outputFormat=outputFormat)
 
     patchProcess(subject, freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTest,outputFormat,operationStr)
 
@@ -417,13 +442,101 @@ def preparePatchAB(freqMin, freqMax, decimation,frameSize,cardPatch,splitTrainTe
 
 #====== Feature manipulation (delete elec, step) =======
 #=======================================================
-def normalizeData(X,xTest):
+class NotFittedError(Exception):pass
 
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+class CovScaler(object):
+    def __init__(self):
+        self.fitted = False
 
-    if np.size(xTest)!=0:
-        xTest = scaler.transform(xTest)
+    def fit(self, X):
+        cov = np.ma.cov(X)
+        self.invCov = np.sqrt(np.linalg.inv(cov + 10e-2*np.eye(np.size(cov,0))))
+        self.fitted = True
+
+    def fit_transform(self, X):
+        self.fit(X)
+        return self.transform(X)
+
+    def transform(self, X):
+        if not self.fitted:
+            raise NotFittedError("Must call CovScaler.fit before CovScaler.transform")
+        else:
+            return np.dot(X.T,self.invCov).T
+
+
+class Winsorizer(object):
+    def __init__(self,cardElec):
+        self.fitted = False
+        self.limit = 0.001
+        self.maximum = None
+        self.minimum = None
+
+        self.cardElec = cardElec
+
+
+    def fit(self, X):
+        raise NotImplemented("Should not be called alone")
+    
+    def fit_transform(self, X):
+        self.fitted = True
+
+        sizeSig = np.size(X,1)/self.cardElec
+
+        for numElec in range(self.cardElec):
+            elecSlice = slice(numElec*sizeSig,(numElec+1)*sizeSig,1)
+            test = X[:,elecSlice]
+            X[:,elecSlice] = winsorize(X[:,elecSlice],limits=self.limit)
+            test = X[:,elecSlice]
+            
+        self.maximum = np.max(X)
+        self.minimum = np.min(X)
+        
+        return X
+
+    def transform(self, X):
+        if not self.fitted:
+            raise NotFittedError("Must call Winsorizer.fit_transform before Winsorizer.transform")
+        else:
+            X = np.clip(X,self.minimum,self.maximum)
+            return X
+
+    
+
+def normalizeData(X,xTest,cardElec,scaleType='standard'):
+
+    winSor = False
+    if winSor:
+        print "Winsorizing Data"
+        winSor = Winsorizer(cardElec)
+        X = winSor.fit_transform(X)
+        xTest = winSor.transform(xTest)
+
+    if scaleType == 'cov':
+        print "Scaling Data using Covariance Matrix"
+        cardExemple = np.size(X,0)
+        X = np.concatenate((X,xTest))
+        scaler = CovScaler()
+        X = scaler.fit_transform(X)
+
+        X, xTest =  X[:cardExemple,:],X[cardExemple:,:]
+        print X.shape, xTest.shape
+        
+    elif scaleType=='standard':
+        print "Scaling Data"
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+        if np.size(xTest)!=0:
+            xTest = scaler.transform(xTest)
+
+    elif scaleType=='sample':
+        print "Normalizing Data"
+        scaler = Normalizer()
+        X = scaler.fit_transform(X)
+        if np.size(xTest)!=0:
+            xTest = scaler.transform(xTest)
+
+    else:
+        print("Data will not be normalized/scaled")
 
     return X,xTest
 
@@ -433,7 +546,6 @@ def delTimeStep(X, timeStep, dataType):
         raise NotImplemented("To be continued")
 
     else:
-        numEx = np.size(X,0)
         numCol = np.size(X,1)
         numPoints = numCol//64
         
@@ -453,9 +565,8 @@ def delTimeStep(X, timeStep, dataType):
 
     return X
 
-def delElec(X, elec, dataType):
+def delElec(X, elec, dataType=None):
 
-    numEx = np.size(X,0)
     numCol = np.size(X,1)
     numPoints = numCol//64
 
@@ -475,27 +586,44 @@ def delElec(X, elec, dataType):
 #========== CONVERT (EXEMPLE,CHANNEL,TIME) <=> (EXEMPLE, FEATURES) ==========
 #============================================================================
 
-def matToVec(X,numElec=64):
+def matToVec(X,cardElec=64):
 
-    numExemple = np.size(X,0)
-    numStep = np.size(X,2)
+    cardExemple = np.size(X,0)
+    cardStep = np.size(X,2)
 
-    xVec = X.reshape((numExemple,numStep*numElec))
+    xVec = X.reshape((cardExemple,cardStep*cardElec))
 
     return xVec
 
-def vecToMat(X,numElec=64):
+def vecToMat(X,cardElec=64):
 
     print X.shape
 
-    numExemple = np.size(X,0)
-    numStep = np.size(X,1)//numElec
+    cardExemple = np.size(X,0)
+    cardStep = np.size(X,1)//cardElec
 
-    xMat = X.reshape((numExemple,numElec,numStep))
+    xMat = X.reshape((cardExemple,cardElec,cardStep))
     return xMat
 
 #========================= DIMENSION REDUCING ===================
 #================================================================
+def selectElectrode(X,xTest):
+
+    # electrodes = [34,11,51,62]
+    #electrodes = [34,11,51,62,47,49,53,55]
+    electrodes = [34,11,51,62,47,49,53,55,61,63,17,19,9,13,3,5]
+    # electrodes = [34,11,51,62,47,49,53,55,61,63,17,19,9,13,3,5,41,30,1,32,26,22,15,57,59,21,42,36,38,28,24]
+
+    electrodes = set(electrodes)
+    wholeElec = set(range(1,65))
+
+    toDel = list(wholeElec - electrodes) 
+    X = delElec(X, toDel)
+    xTest = delElec(xTest, toDel)
+
+    return X,xTest
+
+
 def dimensionReducePCA(X,xTest,n_components=100):
 
     print("PCA : reducing {} features".format(np.size(X,1))
@@ -535,8 +663,6 @@ def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
 
     approach = 'fast'
 
-    selected = []
-
     treshold = 0.90
 
     clf = LinearDiscriminantAnalysis('svd', n_components=n_components,priors=priors)
@@ -554,7 +680,6 @@ def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
     
     if approach=='fast':
         keptFeatures = indexCoef[:n_components]
-        keptCoef = bestCoef[:n_components]
         #Warning : Can be very correlated
         return X[:,keptFeatures], xTest[:,indexCoef[:n_components]]
 
@@ -575,7 +700,7 @@ def fisherCriterionFeaturesSelection(X,y,xTest,n_components):
 def cspReduce(X,xTest,y,n_components):
 
     if np.size(xTest)==0:
-        raise NoTestError("A test file is needed for dimension reducing, otherwise, test would be biaised.\nAdd '-r 0.7' option when calling mainParams.py")
+        raise NoTestError("A test file is needed for dimension reducing, otherwise, test would be biaised.\nAdd '-r 0.8' option when calling mainParams.py")
 
 
     #Reformat X for csp function
@@ -714,7 +839,28 @@ def savePartOfData(filenameI, filenameO):
     np.save(filenameO, miniData)
     np.save('{}fullY'.format(PATH_TO_DATA), y)
 
+def balanceData(X,y):
 
+    print y
+    allNegIndex = np.where(y==-1)[0]
+    allPosIndex = np.where(y==1)[0]
+    
+    cardNeg = np.size(allNegIndex)
+    cardPos = np.size(allPosIndex)
+
+    print "Cardinal of Positive :", cardPos, "\nCardinal of Negative", cardNeg
+    
+    fewerNegIndex = np.array(list(set(allNegIndex[np.random.randint(low=0,high=cardNeg,size=cardPos+60)])))
+
+    keptIndex= np.concatenate((fewerNegIndex,allPosIndex))    
+    X = X[keptIndex]
+    y = y[keptIndex].T
+
+    print "Balanced Data : ", X.shape
+
+    return X,y
+
+    
 def saveBalancedMat(subject):
 
     data = sio.loadmat("{}Subject_{}_Train_reshapedCopy.mat".format(PATH_TO_DATA,subject))
@@ -727,32 +873,71 @@ def saveBalancedMat(subject):
     print y[0]
 
     
-    numExemple = np.size(X,2)
-    newData = np.empty([numExemple, 64*160])
+    cardExemple = np.size(X,2)
+    newData = np.empty([cardExemple, 64*160])
 
-    for exemple in range(numExemple):
+    for exemple in range(cardExemple):
         newData[exemple, :] = np.concatenate( [X[i,:,exemple] for i in range(64)])
-        
 
-    newData = xMatToVec(X)
-
-    #TODO MODIFY 160        
-    allNegIndex = np.where(y==-1)[0]
-    allPosIndex = np.where(y==1)[0]
+    X,y = balanceData(newData,y)
     
-    cardNeg = np.size(allNegIndex)
-    cardPos = np.size(allPosIndex)
-
-    print cardPos,cardNeg
-    
-    fewerNegIndex = np.array(list(set(allNegIndex[np.random.randint(low=0,high=cardNeg,size=cardPos+60)])))
-    print allPosIndex
-
-    keptIndex= np.concatenate((fewerNegIndex,allPosIndex))    
-    X = newData[keptIndex]
-    y = y[keptIndex].T
-
     data['X'] = X
     data['y'] = y
+    print 'Here', data['y'].shape
+    
+    sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+
+def saveMarseilleMat(subject):
+
+    data = sio.loadmat("{}Subject_{}_Train_reshapedCopy.mat".format(PATH_TO_DATA,subject))
+
+    print data.keys()
+
+    X = data['X']
+    data['X'] = X.reshape(np.size(X,0),np.size(X,1)*np.size(X,2))
+    data['y'] = data['y'][:,1]
+
+    print data['X'].shape
+    print data['y']
 
     sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+
+def saveDisabledDataBase(subject):
+
+    wholeX = []
+    wholeY = []
+    for session in [1,2,3,4]:
+        for trial in [1,2,3,4,5,6]:
+            
+            data = sio.loadmat("{}Subject_{}_{}{}.mat".format(PATH_TO_DATA,subject,session,trial))
+
+
+            y = np.array(data['y'])
+            X = np.array(data['X'])
+
+            data = {'X':None,'y':None}
+            cardElec, cardStep, cardExemple = X.shape
+            
+            newData = np.empty([cardExemple, cardElec*cardStep])
+
+            for numExemple in range(cardExemple):
+                newData[numExemple, :] = np.concatenate( [X[i,:,numExemple] for i in range(cardElec)])
+
+            if wholeX == []:
+                wholeX = newData
+                wholeY = y
+            else:
+                wholeX = np.concatenate((wholeX,newData))
+                wholeY = np.concatenate((wholeY,y),axis=1)
+
+            assert np.size(wholeX,1) == np.size(newData,1)
+            assert np.size(wholeY,0) == 1
+
+    wholeY = wholeY[0] #whole Y is [[1,1,1,1 ...]] and we need [1,1,1,1...]
+    
+    wholeX,wholeY = balanceData(wholeX,wholeY)
+    data['X'] = wholeX
+    data['y'] = wholeY
+
+    sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+

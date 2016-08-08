@@ -5,7 +5,7 @@
 from constants import *
 
 from scipy.fftpack import fft, fftshift, fftfreq
-from scipy.signal import butter, lfilter, decimate
+from scipy.signal import butter, lfilter, decimate, filtfilt
 
 from scipy import  sin, pi, ceil, array, absolute
 import scipy.io as sio
@@ -151,18 +151,27 @@ class SignalHandler(object):
         plt.subplot(2,3,6) #STFT Much Bigger Window
         self.plotStft(frameSize*3)
 
-    def _createFilter(self, lowcut, highcut, order=5):
+    def _createFilter(self, lowcut, highcut, order):
         nyq = 0.5 * self.fs
         low = float(lowcut) / nyq
         high = float(highcut) / nyq
         self.b, self.a = butter(order, [low, high], btype='band')
 
-    def filterSig(self, order, lowcut, highcut, decimationFactor):
+    def filterSig(self, order, lowcut, highcut, decimationFactor, method='default'):
+        """
+        if method equals 'default' or 'filtfilt' do forward-backward filter method
+        else do lfilter
+        """
+        
         if self.a==None:
             self._createFilter(lowcut, highcut, order=order)
         
-        #Filter and decimate signal by a factor given
-        self.mainSignal = decimate(lfilter(self.b, self.a, self.mainSignal), decimationFactor)
+        #Filter and decimate signal
+        if not method.lower() in ('default','filtfilt'):
+            self.mainSignal = decimate(filtfilt(self.b, self.a, self.mainSignal), decimationFactor)
+        else:
+            self.mainSignal = decimate(lfilter(self.b, self.a, self.mainSignal), decimationFactor)
+        
         self.fs = self.fs//decimationFactor
         self.numPoints = len(self.mainSignal)
         return self.mainSignal
