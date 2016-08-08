@@ -897,6 +897,7 @@ def saveMarseilleMat(subject):
     print data.keys()
 
     X = data['X']
+    print X.shape
     data['X'] = X.reshape(np.size(X,0),np.size(X,1)*np.size(X,2))
     data['y'] = data['y'][:,1]
 
@@ -943,3 +944,4 @@ def saveDisabledDataBase(subject):
     data['y'] = wholeY
 
     sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+

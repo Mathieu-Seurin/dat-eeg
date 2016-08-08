@@ -358,23 +358,23 @@ def learnCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1, classi
 
     else:
         classif = RidgeClassifier(class_weight=CLASS_WEIGHT)
-        params = np.logspace(-2,3,10)
+        params = np.logspace(-1,3,10)
         hyper = 'classif__alpha'
 
     csp = CSP(reg='ledoit_wolf',log=False)
     scaler = StandardScaler()
-#    pipe = Pipeline(steps = [('csp',csp), ('scale',scaler), ('classif',classif)])
+    #pipe = Pipeline(steps = [('csp',csp), ('scale',scaler), ('classif',classif)])
     pipe = Pipeline(steps = [('scale',scaler), ('classif',classif)])
 
     n_components = [1,2,5,10,20,30,40,50]
-#    dico = {'csp__n_components':n_components, hyper:params}
+    #dico = {'csp__n_components':n_components, hyper:params}
     dico = {hyper:params}
 
     grd = grid_search.GridSearchCV(pipe,dico, cv=5, verbose=0)
     grd.fit(X,y)
 
-#    return grd.best_score_, grd.best_params_['csp__n_components']
-    return grd.best_score_
+    #return grd.best_score_, grd.best_params_['csp__n_components']
+    return grd.best_score_, 0
 
     
     # if testAvailable:
