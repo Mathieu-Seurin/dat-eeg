@@ -46,5 +46,17 @@ decimation = 4
 letters = ('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z')
 
 
-X,y = loadAll()
-lettersComp(X,y)
+#X,y = loadAll()
+#lettersComp(X,y)
+
+withCsp = np.load('lettersComparisonWithCsp.npy')
+withoutCsp = np.load('lettersComparisonWithoutCsp.npy')
+
+plt.subplot(1,2,1)
+plt.imshow(withoutCsp)
+
+plt.subplot(1,2,2)
+plt.imshow(withCsp)
+
+
+plt.show()
