@@ -52,11 +52,17 @@ letters = ('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','
 withCsp = np.load('lettersComparisonWithCsp.npy')
 withoutCsp = np.load('lettersComparisonWithoutCsp.npy')
 
-plt.subplot(1,2,1)
-plt.imshow(withoutCsp)
+f, ax = plt.subplots(2,sharex=True,sharey=True)
+im = ax[0].imshow(withoutCsp,interpolation='none')
 
-plt.subplot(1,2,2)
-plt.imshow(withCsp)
+ax[1].imshow(withCsp,interpolation='none')
+
+plt.xticks(range(26), letters)
+plt.yticks(range(26), letters)
+
+f.subplots_adjust(right=0.8)
+cbar_ax = f.add_axes([0.85, 0.15, 0.05, 0.7])
+f.colorbar(im,cax=cbar_ax)
 
 
 plt.show()
