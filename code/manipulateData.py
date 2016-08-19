@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 #coding: utf-8
 
-
 #Perso
 from constants import *
 from signalManipulation import *
@@ -45,22 +44,29 @@ def reformatRawData(filenameI, filenameO):
     np.save('{}{}fullY'.format(PATH_TO_DATA, filenameO[0]), y)
     np.save('{}{}'.format(PATH_TO_DATA, filenameO), X)
 
-
 def filterRawData(filenameI, freqInf, freqSup, decimation):
 
     if filenameI[1:5] == 'full':
         subject = filenameI[0]
         print("Subject : ",subject)
 
-        if subject== 'Z':
+        if subject in ('S','T','U','V','W','X','Y','Z'):
             cardElec = 32
             fs = 2048
+            filterType = 'filtfilt'
+        elif subject == 'R':
+            cardElec = 32
+            fs = 2048//2
+            filterType = 'filtfilt'
+
         elif subject in ('1','2','3','4','5'):
             cardElec = 64
             fs = 512
         else:
             cardElec = 64
             fs = 240
+            filterType = 'lfilt'
+
     else:
         print(filenameI)
         raise NotImplemented("Can't use this format at the moment")
@@ -83,7 +89,7 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
 
     currentSignal = SignalHandler(data[0,:numPoints], fs)
     
-    sizeOfNewSignal = np.size(currentSignal.filterSig(order,freqInf,freqSup,decimation),0)
+    sizeOfNewSignal = np.size(currentSignal.filterSig(order,freqInf,freqSup,decimation,filterType),0)
     print('Size of new signal : ', sizeOfNewSignal)
 
     newData = np.empty((numExemple, cardElec*sizeOfNewSignal))
@@ -91,7 +97,7 @@ def filterRawData(filenameI, freqInf, freqSup, decimation):
     for ex, x in enumerate(data):
         for numSignal, i in enumerate(range(0,len(x), numPoints)):
             currentSignal.mainSignal = x[i:i+numPoints]
-            signalFiltered = currentSignal.filterSig(order,freqInf,freqSup,decimation)
+            signalFiltered = currentSignal.filterSig(order,freqInf,freqSup,decimation,filterType)
 
             indexBegin = numSignal*sizeOfNewSignal
             indexEnd = (numSignal+1)*sizeOfNewSignal
@@ -600,8 +606,6 @@ def matToVec(X,cardElec=64):
 
 def vecToMat(X,cardElec=64):
 
-    print X.shape
-
     cardExemple = np.size(X,0)
     cardStep = np.size(X,1)//cardElec
 
@@ -915,7 +919,6 @@ def saveDisabledDataBase(subject):
             
             data = sio.loadmat("{}Subject_{}_{}{}.mat".format(PATH_TO_DATA,subject,session,trial))
 
-
             y = np.array(data['y'])
             X = np.array(data['X'])
 
@@ -944,4 +947,33 @@ def saveDisabledDataBase(subject):
     data['y'] = wholeY
 
     sio.savemat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
+
+def fullDisabled():
+
+    data = sio.loadmat("{}Subject_S_Train_reshaped.mat".format(PATH_TO_DATA))
+    wholeX = data['X']
+    wholeY = data['y']
+
+    numFeat = np.size(wholeX,1)
+    toKeep = np.where(np.array(range(numFeat))%2-1)[0]
+
+    wholeX = data['X'][:,toKeep]
+    
+    for subject in ['T','U','V','W','X','Y','Z']:
+        data = sio.loadmat("{}Subject_{}_Train_reshaped.mat".format(PATH_TO_DATA,subject))
+
+        wholeX = np.concatenate((wholeX,data['X'][:,toKeep]))
+        wholeY = np.concatenate((wholeY,data['y']),axis=1)
+
+
+        assert np.size(wholeX,1) == np.size(data['X'][:,toKeep],1)
+        assert np.size(wholeY,0) == 1
+
+    print wholeX.shape
+    print wholeY[0]
+        
+    data['X'] = wholeX
+    data['y'] = wholeY[0]
+
+    sio.savemat("{}Subject_R_Train_reshaped.mat".format(PATH_TO_DATA,subject),data)
 

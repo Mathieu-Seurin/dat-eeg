@@ -157,7 +157,7 @@ class SignalHandler(object):
         high = float(highcut) / nyq
         self.b, self.a = butter(order, [low, high], btype='band')
 
-    def filterSig(self, order, lowcut, highcut, decimationFactor, method='default'):
+    def filterSig(self, order, lowcut, highcut, decimationFactor, method='lfilter'):
         """
         if method equals 'default' or 'filtfilt' do forward-backward filter method
         else do lfilter
@@ -167,7 +167,7 @@ class SignalHandler(object):
             self._createFilter(lowcut, highcut, order=order)
         
         #Filter and decimate signal
-        if not method.lower() in ('default','filtfilt'):
+        if method.lower() in ('default','filtfilt'):
             self.mainSignal = decimate(filtfilt(self.b, self.a, self.mainSignal), decimationFactor)
         else:
             self.mainSignal = decimate(lfilter(self.b, self.a, self.mainSignal), decimationFactor)

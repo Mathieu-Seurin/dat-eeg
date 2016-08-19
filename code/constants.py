@@ -5,7 +5,7 @@ PATH_TO_DATA = 'Data/'
 PATH_TO_MODEL = 'Models/'
 
 from sklearn import __version__
-SKLEARN_VERSION = float(__version__[-6:-2])
+SKLEARN_VERSION = float(__version__)
 print "Sklearn Version :", SKLEARN_VERSION
 
 

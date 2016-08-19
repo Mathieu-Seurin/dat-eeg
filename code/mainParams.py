@@ -22,7 +22,7 @@ parser.add_argument("data", help="Type of Data you want to learn/transform",choi
 parser.add_argument("model", help="Type of Model you want to use",choices=allModelType)
 
 #Optionnal Argument
-parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','C','5','Z','Y'], default='A')
+parser.add_argument("-s", "--subject", help="Which subject to use (default : A)", choices=['A','B','C','5','Z','Y','R'], default='A')
 
 parser.add_argument("-j","--jobs",help="Number of jobs used to learn the data", type=int, default=1)
 
@@ -50,7 +50,7 @@ parser.add_argument("--outputFormat", help="type of output for stft matrix file 
 parser.add_argument("-c", "--copyResults", help="Copy Results to your home if argument presnt", action="store_true") 
 parser.add_argument("-t", "--transfer", help="Transfer Learning if indicated", action="store_true") 
 
-parser.add_argument("-n", "--normalize", help="Type of normalizing/Scaling",choices=["standard","sample","cov",None])
+parser.add_argument("-n", "--normalize", help="Type of normalizing/Scaling",choices=["standard","sample","cov",'None','none'], default='standard')
 
 
 
@@ -64,6 +64,7 @@ if args.subject in ('Y','Z'):
     CARDELEC = 32
 else:
     CARDELEC = 64
+
 #=========================  DATA  ==================================
 #===================================================================
 if data == 'test':

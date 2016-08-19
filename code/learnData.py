@@ -61,13 +61,17 @@ def writeResults(results, best_params, best_score, modelType, penalty, scoreType
     elif modelType=='Pipe':
         for model in results:
             print(model)
-            strScores += "{} {:.4} {} {}\n".format(model[0]['csp__n_components'], model[0]['lin__C'], model[1], np.std(model[2]))
+            if 'classif__C' in model[0].keys():
+                strScores += "{} {:.4} {} {}\n".format(model[0]['csp__n_components'], model[0]['classif__C'], model[1], np.std(model[2]))
+            else:
+                strScores += "{} {:.4} {} {}\n".format(model[0]['csp__n_components'], model[0]['classif__alpha'], model[1], np.std(model[2]))
 
     elif modelType=='Ridge':
         for model in results:
             print(model)
             strScores += "{:.4} {} {}\n".format(model[0]['alpha'], model[1], np.std(model[2]))
-         
+
+                
     else: #Linear, C is the only parameter
         for model in results:
             print(model)
@@ -302,7 +306,7 @@ def learnRidge(X,y,xTest,yTest,scoring, transformedData, jobs):
     #Creating Model and begin classification
     #=======================================
     classif = RidgeClassifier(class_weight=CLASS_WEIGHT)
-    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs, verbose=3, refit=testAvailable)
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=10, n_jobs=jobs, verbose=3, refit=testAvailable)
     print("Begin\n...")
     clf.fit(X,y)
 
@@ -342,11 +346,11 @@ def learnRandomForest(X,y,xTest,yTest,scoring, jobs):
     printScores(scores)
 
 
-def learnCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1, classifier='lin'):
+def learnCspPipeline(X, y, xTest, yTest, scoring,transformedData,jobs=1, classifier='lin'):
 
     testAvailable = np.size(xTest)
     
-#    X = vecToMat(X)
+    X = vecToMat(X)
 
     if testAvailable:
         xTest = vecToMat(xTest)
@@ -363,27 +367,23 @@ def learnCspPipeline(X, y, xTest, yTest, scoring, transformedData,jobs=1, classi
 
     csp = CSP(reg='ledoit_wolf',log=False)
     scaler = StandardScaler()
-    #pipe = Pipeline(steps = [('csp',csp), ('scale',scaler), ('classif',classif)])
-    pipe = Pipeline(steps = [('scale',scaler), ('classif',classif)])
+    pipe = Pipeline(steps = [('csp',csp), ('scaler',scaler), ('classif',classif)])
+    pipe = Pipeline(steps = [('csp',csp), ('classif',classif)])
 
     n_components = [1,2,5,10,20,30,40,50]
-    #dico = {'csp__n_components':n_components, hyper:params}
-    dico = {hyper:params}
+    dico = {'csp__n_components':n_components, hyper:params}
 
-    grd = grid_search.GridSearchCV(pipe,dico, cv=5, verbose=0)
+    grd = grid_search.GridSearchCV(pipe,dico, cv=5, verbose=3, n_jobs=4)
     grd.fit(X,y)
 
-    #return grd.best_score_, grd.best_params_['csp__n_components']
-    return grd.best_score_, 0
-
     
-    # if testAvailable:
-    #     scores = testModel(grd.best_estimator_,X,y,xTest,yTest,'l2')
-    #     writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=scores)
+    if testAvailable:
+        scores = testModel(grd.best_estimator_,X,y,xTest,yTest,'l2')
+        writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=scores)
 
-    # else:
-    #     print("No test, don't predict data")    
-    #     writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=None)
+    else:
+        print("No test, don't predict data")    
+        writeResults(grd.grid_scores_, grd.best_params_, grd.best_score_,'Pipe', 'l2', scoring, transformedData, scores=None)
 
 
                 
@@ -398,7 +398,7 @@ def learnElasticNet(X,y,xTest,yTest,scoring,transformedData='raw',jobs=1):
     #Creating Model and begin classification
     #=======================================
     classif = ElasticNet(selection='random')
-    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=5,verbose=3)
+    clf = grid_search.GridSearchCV(classif, parameters, scoring=scoring, cv=5, n_jobs=jobs,verbose=3)
 
     print("Begin\n...")
     clf.fit(X,y)

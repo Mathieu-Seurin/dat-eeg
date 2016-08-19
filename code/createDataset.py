@@ -26,10 +26,8 @@ sig = np.random.normal(-1,20,(numTrial,numPoints*numElec))
 sig += np.random.normal(0,10,(numTrial,numPoints*numElec))
 
 
-
 for elec in [11,4,10,12,50,51,52,53,18,17,19,58]:
     sig[indexPos,elec*160+80:elec*160+100] += sinus
-
 
 data = {'X':sig, 'y':y}
 

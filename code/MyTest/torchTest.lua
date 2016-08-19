@@ -31,7 +31,10 @@ function SplitTrainTest(X,y,split)
    return xTrain,xTest,yTrain,yTest
 end
 -- Loading data ===========================================
-data = matio.load('../Data/CFiltered.mat')
+
+--data = matio.load('../Data/CFiltered.mat')
+data = matio.load('../Data/Subject_C_Train_reshaped.mat')
+
 
 X = data['X']
 y = data['y']
